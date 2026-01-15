@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# Env files
+.env
+.env.local
+
+# Data
+*.pdf
+data/uploads/
+
+# uv
+uv.lock
+
+# Caches
+.cache/
+*.parquet

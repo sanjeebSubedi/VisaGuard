@@ -1,0 +1,91 @@
+VisaGuard Implementation Plan
+
+1. Project Overview
+-------------------
+VisaGuard is a privacy-preserving, multi-agent orchestration system for F-1 visa compliance. It uses a cyclic state graph (LangGraph) to manage regulatory workflows, separating deterministic logic (dates) from reasoning (LLMs).
+
+2. System Architecture
+----------------------
+- Orchestration: LangGraph (State Management)
+  - **State Efficiency:** Pass `document_id` only in graph state, not raw content. Fetch content from DB when needed.
+  - **HITL Pattern:** Use `interrupt_before` strategy for Form Generation.
+- Persistence: PostgresCheckpointer (LangGraph state persistence)
+- Privacy Layer: Microsoft Presidio + Custom Regex (Upstream of all agents, scrub on upload)
+- Ingestion: LlamaParse (PDF to Structured JSON) with **Content-Addressable Hashing** (SHA-256) for caching.
+- Database: 
+  - PostgreSQL: 
+    - `users`: Auth & Profiles
+    - `documents`: Stores raw/scrubbed content & parsed JSON (referenced by ID in Graph State).
+    - `thread_ts` / `checkpoints`: LangGraph State
+    - `audit_logs`: decision traces
+  - ChromaDB: Vector Store for RAG
+- Backend: FastAPI
+- Frontend: Streamlit (MVP/Internal Tool)
+- PDF Generation: pypdf / pikepdf (Form Filling on official templates)
+- Observability: LangSmith
+
+3. Project Structure
+--------------------
+visaguard/
+├── .env
+├── requirements.txt
+├── README.md
+├── app/
+│   ├── main.py
+│   ├── api/
+│   ├── core/
+│   ├── privacy/
+│   ├── graph/
+│   │   ├── nodes/
+│   │   │   ├── ...
+│   │   └── state.py         # Graph State Schema (stores doc_ids, not strings)
+│   ├── services/
+│   │   ├── form_filler.py
+│   │   └── ingestion.py     # LlamaParse + SHA-256 Caching logic
+│   └── db/
+│   └── tests/               # TDD: Unit tests for logic
+├── scripts/
+│   └── inspect_pdf_fields.py
+├── frontend/
+├── data/
+    ├── regulations/
+    ├── golden_dataset.json  # Reference Compliance Scenarios
+    └── templates/
+
+4. Development Phases
+---------------------
+
+Phase 1: Foundation & Privacy Layer
+- Initialize Git repository and virtual environment.
+- Setup FastAPI structure.
+- **Task:** Create `inspect_pdf_fields.py` and map I-983 fields.
+- Implement `PrivacyPipeline` (Presidio).
+
+Phase 2: Ingestion & TDD Setup (The "Hard" Part)
+- **TDD:** Create `tests/test_date_math.py` and `data/golden_dataset.json` (Scenarios & Assertions).
+- Implement `DocumentAgent` with LlamaParse.
+- **Optimization:** Implement Content-Addressable Caching (SHA-256) to deduplicate uploads and save parsing costs.
+
+Phase 3: Core Logic & RAG
+- Implement `TimelineManager` (Pure Python, verified by tests from Phase 2).
+- Implement `PolicyAgent` (RAG).
+
+Phase 4: Orchestration & Compliance
+- Build LangGraph state machine with `PostgresCheckpointer`.
+- Implement `ComplianceAgent`.
+- Implement `AuditService`.
+
+Phase 5: Action Layer (PDF Form Filling with HITL)
+- **HITL logic:** `interrupt_before` `dso_agent`.
+- Implement `DSOAgent` & `FormFiller`.
+
+Phase 6: Search & Deployment
+- Build Streamlit interface.
+- Run full evaluation suite.
+
+5. Critical Technical Guidelines
+--------------------------------
+- State Hygiene: Never convert state to a generic storage of huge strings. Use Pointer IDs.
+- Privacy First: Scrub PII immediately.
+- TDD: Write the test case before writing the agent logic.
+- PDF Inspection: Inspect first, then map.
