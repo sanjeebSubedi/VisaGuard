@@ -4,10 +4,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Paths
+# Paths (all resolved to absolute for ChromaDB persistence compatibility)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
-TEMPLATES_DIR = DATA_DIR / "templates"
+DATA_DIR = (BASE_DIR / "data").resolve()
+TEMPLATES_DIR = (DATA_DIR / "templates").resolve()
 
 # API Keys (loaded from .env)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
