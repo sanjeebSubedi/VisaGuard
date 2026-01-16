@@ -144,25 +144,29 @@ def render_sidebar():
         )
         
         if uploaded_file:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(uploaded_file.getvalue())
-                tmp_path = Path(tmp.name)
+            # Check if this file was already processed (by name)
+            existing_names = {doc["name"] for doc in st.session_state.documents}
             
-            # Process document
-            with st.spinner("Processing document..."):
-                try:
-                    from app.services.ingestion import get_ingestion_service
-                    service = get_ingestion_service()
-                    doc = service.ingest_pdf(tmp_path)
-                    
-                    st.session_state.documents.append({
-                        "name": uploaded_file.name,
-                        "id": doc.document_id,
-                        "hash": doc.content_hash[:8],
-                    })
-                    st.success(f"✅ Uploaded: {uploaded_file.name}")
-                except Exception as e:
-                    st.error(f"Error: {str(e)}")
+            if uploaded_file.name not in existing_names:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    tmp.write(uploaded_file.getvalue())
+                    tmp_path = Path(tmp.name)
+                
+                # Process document
+                with st.spinner("Processing document..."):
+                    try:
+                        from app.services.ingestion import get_ingestion_service
+                        service = get_ingestion_service()
+                        doc = service.ingest_pdf(tmp_path)
+                        
+                        st.session_state.documents.append({
+                            "name": uploaded_file.name,
+                            "id": doc.document_id,
+                            "hash": doc.content_hash[:8],
+                        })
+                        st.success(f"✅ Uploaded: {uploaded_file.name}")
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
         
         # List uploaded documents
         if st.session_state.documents:
