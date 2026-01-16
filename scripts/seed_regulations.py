@@ -7,6 +7,14 @@ These are paraphrased versions of actual USCIS regulations for testing.
 Run with: uv run python scripts/seed_regulations.py
 """
 
+import sys
+from pathlib import Path
+
+# Add project root to path for imports
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from app.graph.nodes.policy_agent import PolicyAgent, PolicyChunk
 
 

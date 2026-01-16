@@ -254,8 +254,9 @@ def process_message(user_message: str) -> str:
     """
     Process user message and generate response.
     
-    In production, this would invoke the LangGraph workflow.
-    For MVP, we provide direct responses.
+    Uses real AI agents when available:
+    - PolicyAgent for regulatory questions
+    - ComplianceAgent for status checks (coming soon)
     """
     message_lower = user_message.lower()
     
@@ -275,23 +276,38 @@ def process_message(user_message: str) -> str:
             "or if you have any questions about the form."
         )
     
-    # Policy questions
-    if "unemployment" in message_lower or "how many days" in message_lower:
+    # I-983 generation (keep as mock for now - requires full workflow)
+    if "i-983" in message_lower or "training plan" in message_lower:
+        st.session_state.awaiting_approval = True
+        
+        # Show current data if available
+        student = st.session_state.student_data
+        employer = st.session_state.employer_data
+        
+        student_name = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip() or "Not yet provided"
+        sevis = student.get('sevis_id', 'Not yet provided') or "Not yet provided"
+        school = student.get('school_name', 'Not yet provided') or "Not yet provided"
+        company = employer.get('company_name', 'Not yet provided') or "Not yet provided"
+        ein = employer.get('ein', 'Not yet provided') or "Not yet provided"
+        
         return (
-            "## F-1 OPT Unemployment Rules\n\n"
-            "According to **8 CFR 214.2(f)(10)(ii)(E)**:\n\n"
-            "- **Post-Completion OPT**: Maximum **90 days** of unemployment\n"
-            "- **STEM OPT Extension**: Maximum **150 days** total (cumulative)\n\n"
-            "⚠️ **Important:**\n"
-            "- Unemployment is counted from your OPT start date\n"
-            "- Working less than 20 hours/week counts as unemployment\n"
-            "- Self-employment is NOT allowed during STEM OPT\n\n"
-            "*Do you have a specific situation you'd like me to analyze?*"
+            "## 📝 I-983 Training Plan Generator\n\n"
+            "I'll help you create your I-983 form. Here's what I have:\n\n"
+            "### Student Information\n"
+            f"- **Name**: {student_name}\n"
+            f"- **SEVIS ID**: {sevis}\n"
+            f"- **School**: {school}\n\n"
+            "### Employer Information\n"
+            f"- **Company**: {company}\n"
+            f"- **EIN**: {ein}\n\n"
+            "---\n"
+            "To generate your I-983, please fill in missing information\n"
+            "using the form on the right, or upload your documents.\n\n"
+            "*Type 'Approve' when ready to generate, or ask me questions!*"
         )
     
-    # Compliance check
+    # Compliance check (mock for now - would use real timeline data)
     if "compliance" in message_lower or "status" in message_lower:
-        # Simulate timeline calculation
         st.session_state.timeline_data = {
             "unemployment_days": 45,
             "unemployment_limit": 90,
@@ -314,43 +330,55 @@ def process_message(user_message: str) -> str:
             "*Is there anything specific you'd like me to check?*"
         )
     
-    # I-983 generation
-    if "i-983" in message_lower or "training plan" in message_lower:
-        st.session_state.awaiting_approval = True
+    # ============================================================
+    # REAL AI: Use PolicyAgent for regulatory questions
+    # ============================================================
+    try:
+        from app.graph.nodes.policy_agent import PolicyAgent
         
-        return (
-            "## 📝 I-983 Training Plan Generator\n\n"
-            "I'll help you create your I-983 form. First, let me show you "
-            "what information I have:\n\n"
-            "### Student Information\n"
-            "- **Name**: Not yet provided\n"
-            "- **SEVIS ID**: Not yet provided\n"
-            "- **School**: Not yet provided\n\n"
-            "### Employer Information\n"
-            "- **Company**: Not yet provided\n"
-            "- **EIN**: Not yet provided\n\n"
-            "### Training Plan\n"
-            "- **Start Date**: Not yet provided\n"
-            "- **Hours/Week**: Not yet provided\n\n"
-            "---\n"
-            "❓ **Missing Information**\n\n"
-            "To generate your I-983, please provide:\n"
-            "1. Your student information (or upload your I-20)\n"
-            "2. Employer details (or upload your offer letter)\n"
-            "3. Training plan goals and supervisor info\n\n"
-            "*Would you like to fill these in now, or upload documents?*"
-        )
+        agent = PolicyAgent()
+        agent.initialize()
+        
+        result = agent.query(user_message, n_results=3)
+        
+        # Format response with citations
+        if result.confidence >= 0.5:
+            response = f"## 📜 Policy Response\n\n{result.answer}\n\n"
+            
+            if result.citations:
+                response += "---\n### 📚 Sources\n"
+                for cite in result.citations[:3]:
+                    response += f"- **{cite['source']}** ({cite['section']}): {cite['confidence']:.0%} match\n"
+            
+            if result.needs_manual_review:
+                response += "\n⚠️ *Low confidence - please verify with your DSO or official sources.*"
+            
+            return response
+        else:
+            # Low confidence - provide helpful fallback
+            return (
+                "I couldn't find a confident answer in my knowledge base.\n\n"
+                f"You asked: *\"{user_message}\"*\n\n"
+                "Try asking about:\n"
+                "- Unemployment limits (90 days / 150 days)\n"
+                "- STEM OPT requirements\n"
+                "- E-Verify requirements\n"
+                "- Reporting deadlines\n"
+                "- Grace period rules\n\n"
+                "*Or, consult your DSO for official guidance.*"
+            )
     
-    # Default response
-    return (
-        "I'm here to help with F-1 OPT compliance! Here's what I can do:\n\n"
-        "- 🔍 **Check Compliance**: Analyze your current status\n"
-        "- 📝 **Generate Forms**: Create I-983 Training Plans\n"
-        "- ❓ **Answer Questions**: Explain OPT regulations\n"
-        "- 📅 **Track Deadlines**: Monitor reporting requirements\n\n"
-        f"You asked: *\"{user_message}\"*\n\n"
-        "Could you clarify what you'd like help with?"
-    )
+    except Exception as e:
+        # Fallback if AI fails
+        return (
+            "I'm here to help with F-1 OPT compliance! Here's what I can do:\n\n"
+            "- 🔍 **Check Compliance**: Analyze your current status\n"
+            "- 📝 **Generate Forms**: Create I-983 Training Plans\n"
+            "- ❓ **Answer Questions**: Explain OPT regulations\n"
+            "- 📅 **Track Deadlines**: Monitor reporting requirements\n\n"
+            f"You asked: *\"{user_message}\"*\n\n"
+            f"*(AI temporarily unavailable: {str(e)[:100]})*"
+        )
 
 
 def render_data_entry_modal():
