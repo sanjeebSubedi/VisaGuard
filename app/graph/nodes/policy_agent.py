@@ -16,7 +16,7 @@ from typing import Optional
 import chromadb
 from chromadb.utils import embedding_functions
 
-from app.core.config import DATA_DIR, OPENAI_API_KEY
+from app.core.config import DATA_DIR, GEMINI_API_KEY
 
 
 # Confidence threshold - below this, we don't trust the retrieval
@@ -89,11 +89,11 @@ class PolicyAgent:
         # Create persistent client
         self.client = chromadb.PersistentClient(path=self.persist_directory)
         
-        # Use OpenAI embeddings if API key is available, otherwise use default
-        if OPENAI_API_KEY:
-            embedding_fn = embedding_functions.OpenAIEmbeddingFunction(
-                api_key=OPENAI_API_KEY,
-                model_name="text-embedding-3-small"
+        # Use Google Gemini embeddings if API key is available, otherwise use default
+        if GEMINI_API_KEY:
+            embedding_fn = embedding_functions.GoogleGenerativeAiEmbeddingFunction(
+                api_key=GEMINI_API_KEY,
+                model_name="models/text-embedding-004"
             )
         else:
             # Fallback to default (sentence-transformers)

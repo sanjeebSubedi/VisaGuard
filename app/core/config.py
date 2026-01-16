@@ -10,8 +10,10 @@ DATA_DIR = (BASE_DIR / "data").resolve()
 TEMPLATES_DIR = (DATA_DIR / "templates").resolve()
 
 # API Keys (loaded from .env)
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 LLAMA_CLOUD_API_KEY = os.getenv("LLAMA_CLOUD_API_KEY", "")
+# Legacy - kept for backward compatibility
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # Database
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/visaguard")

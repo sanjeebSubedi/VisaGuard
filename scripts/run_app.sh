@@ -7,8 +7,8 @@ echo "🛡️ Starting VisaGuard..."
 echo ""
 
 # Check for required environment variables
-if [ -z "$OPENAI_API_KEY" ]; then
-    echo "⚠️  Warning: OPENAI_API_KEY not set. Some features may be limited."
+if [ -z "$GEMINI_API_KEY" ]; then
+    echo "⚠️  Warning: GEMINI_API_KEY not set. AI features will be limited."
 fi
 
 if [ -z "$LLAMA_CLOUD_API_KEY" ]; then

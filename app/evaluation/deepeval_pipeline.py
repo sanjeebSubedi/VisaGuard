@@ -29,7 +29,7 @@ try:
 except ImportError:
     DEEPEVAL_AVAILABLE = False
 
-from app.core.config import DATA_DIR, OPENAI_API_KEY
+from app.core.config import DATA_DIR, GEMINI_API_KEY
 
 
 # Golden dataset of test cases for immigration compliance

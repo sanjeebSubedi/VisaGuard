@@ -20,9 +20,9 @@ from enum import Enum
 from typing import Optional
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 
-from app.core.config import OPENAI_API_KEY
+from app.core.config import GEMINI_API_KEY
 from app.graph.state import VisaGuardState, ComplianceVerdict, WorkflowStage
 
 
@@ -137,29 +137,29 @@ class ComplianceAgent:
     
     def __init__(
         self,
-        model_name: str = "gpt-4o-mini",
+        model_name: str = "gemini-1.5-flash",
         temperature: float = 0.1,  # Low temperature for consistency
     ):
         """
         Initialize the Compliance Agent.
         
         Args:
-            model_name: OpenAI model to use for reasoning.
+            model_name: Google Gemini model to use for reasoning.
             temperature: LLM temperature (lower = more deterministic).
         """
         self.model_name = model_name
         self.temperature = temperature
-        self.llm: Optional[ChatOpenAI] = None
+        self.llm: Optional[ChatGoogleGenerativeAI] = None
     
-    def _get_llm(self) -> ChatOpenAI:
+    def _get_llm(self) -> ChatGoogleGenerativeAI:
         """Get or create the LLM instance."""
         if self.llm is None:
-            if not OPENAI_API_KEY:
-                raise ValueError("OPENAI_API_KEY not set")
-            self.llm = ChatOpenAI(
+            if not GEMINI_API_KEY:
+                raise ValueError("GEMINI_API_KEY not set")
+            self.llm = ChatGoogleGenerativeAI(
                 model=self.model_name,
                 temperature=self.temperature,
-                api_key=OPENAI_API_KEY,
+                google_api_key=GEMINI_API_KEY,
             )
         return self.llm
     
