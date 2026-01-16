@@ -53,7 +53,7 @@ class TestIngestionService:
             document_id="abc123",
             original_filename="test.pdf",
             content_hash="fakehash123",
-            raw_text="Raw content with SSN 123-45-6789",
+            raw_text="Raw content with SSN 123-45-6789",  # This should NOT be persisted
             scrubbed_text="Raw content with SSN [SSN_REDACTED]",
             extracted_fields={"name": "John"},
             metadata={"source": "test"}
@@ -65,6 +65,36 @@ class TestIngestionService:
         assert loaded is not None
         assert loaded.document_id == "abc123"
         assert loaded.scrubbed_text == "Raw content with SSN [SSN_REDACTED]"
+
+    def test_raw_text_not_persisted_to_cache(self, tmp_path):
+        """CRITICAL: raw_text (containing PII) must NEVER be written to disk."""
+        import json
+        from app.services.ingestion import IngestionService, ParsedDocument
+        
+        service = IngestionService(cache_dir=tmp_path / "cache")
+        
+        doc = ParsedDocument(
+            document_id="abc123",
+            original_filename="test.pdf",
+            content_hash="privacytest123",
+            raw_text="SECRET SSN 999-88-7777 MUST NOT BE SAVED",
+            scrubbed_text="SECRET SSN [REDACTED] MUST NOT BE SAVED",
+            extracted_fields={},
+            metadata={}
+        )
+        
+        service.save_to_cache(doc)
+        
+        # Read the cache file directly and verify raw_text is NOT there
+        cache_file = tmp_path / "cache" / "privacytest123.json"
+        with open(cache_file, "r") as f:
+            cached_data = json.load(f)
+        
+        # raw_text should be excluded from serialization
+        assert "raw_text" not in cached_data
+        assert "999-88-7777" not in str(cached_data)
+        # But scrubbed_text should be there
+        assert cached_data["scrubbed_text"] == "SECRET SSN [REDACTED] MUST NOT BE SAVED"
 
     def test_cache_miss_returns_none(self, tmp_path):
         """Loading non-existent cache should return None."""

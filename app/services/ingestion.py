@@ -4,7 +4,10 @@ Document Ingestion Service
 Handles PDF parsing using LlamaParse with content-addressable caching (SHA-256)
 to avoid re-parsing the same documents and save API costs.
 
-Key principle: Hash first, parse only if needed, store results.
+Key principles:
+- Hash first, parse only if needed, store results
+- NEVER persist raw_text (with PII) to disk - only scrubbed_text is cached
+- Use markdown mode for table preservation in forms
 """
 
 import hashlib
@@ -24,8 +27,12 @@ class ParsedDocument(BaseModel):
     document_id: str = Field(description="SHA-256 hash of the original file")
     original_filename: str
     content_hash: str
-    raw_text: str = Field(description="Full extracted text (before scrubbing)")
-    scrubbed_text: str = Field(description="Text with PII removed")
+    raw_text: str = Field(
+        default="",
+        description="Full extracted text (in-memory only, NEVER persisted to disk)",
+        exclude=True  # Exclude from serialization to prevent PII leakage
+    )
+    scrubbed_text: str = Field(description="Text with PII removed (safe to persist)")
     extracted_fields: dict = Field(default_factory=dict, description="Structured data extracted from document")
     metadata: dict = Field(default_factory=dict)
 
@@ -93,7 +100,7 @@ class IngestionService:
         """
         Parse a PDF using LlamaParse.
         
-        Returns the extracted text content.
+        Returns the extracted content in markdown format (preserves tables).
         """
         if not LLAMA_CLOUD_API_KEY:
             raise ValueError(
@@ -106,7 +113,7 @@ class IngestionService:
         
         parser = LlamaParse(
             api_key=LLAMA_CLOUD_API_KEY,
-            result_type="text",
+            result_type="markdown",  # Preserve table structure for forms
             verbose=False,
         )
         
