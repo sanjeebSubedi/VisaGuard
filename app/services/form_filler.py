@@ -76,6 +76,49 @@ class FormFiller:
         """
         return self.field_mappings.get(semantic_key)
     
+    def _format_date(self, date_str: str) -> str:
+        """
+        Convert various date formats to MM-DD-YYYY for US official forms.
+        
+        Handles:
+        - ISO format: YYYY-MM-DD -> MM-DD-YYYY
+        - Already formatted: MM-DD-YYYY -> MM-DD-YYYY
+        - datetime.date objects
+        
+        Args:
+            date_str: Date string in various formats.
+            
+        Returns:
+            Date formatted as MM-DD-YYYY, or original string if parsing fails.
+        """
+        if not date_str:
+            return ""
+        
+        # Handle date objects
+        if isinstance(date_str, date):
+            return date_str.strftime("%m-%d-%Y")
+        
+        date_str = str(date_str).strip()
+        
+        # Try parsing ISO format (YYYY-MM-DD)
+        try:
+            from datetime import datetime
+            dt = datetime.strptime(date_str, "%Y-%m-%d")
+            return dt.strftime("%m-%d-%Y")
+        except ValueError:
+            pass
+        
+        # Try parsing ISO with slashes (YYYY/MM/DD)
+        try:
+            from datetime import datetime
+            dt = datetime.strptime(date_str, "%Y/%m/%d")
+            return dt.strftime("%m-%d-%Y")
+        except ValueError:
+            pass
+        
+        # If already in US format or unknown, return as-is
+        return date_str
+    
     def prepare_i983_data(
         self,
         student_data: dict,
@@ -109,13 +152,13 @@ class FormFiller:
             "Name_of_School_Where_Stem_Degree_Was_Earned": 
                 student_data.get("school_name", ""),
             "Level/Type_of_Qualifying_Degree": student_data.get("degree_level", ""),
-            "Degree_Awarded_Date(mm-dd-yyyy)": student_data.get("graduation_date", ""),
+            "Degree_Awarded_Date(mm-dd-yyyy)": self._format_date(student_data.get("graduation_date", "")),
             "Qualifying_Major_and_Classification_of_Instructional_Programs_(CIP)_Code": 
                 student_data.get("major_cip", ""),
             
             # OPT Information
-            "STEM_OPT_Requested_From_(mm-dd-yyyy)": student_data.get("opt_start", ""),
-            "STEM_OPT_Requested_To_(mm-dd-yyyy)": student_data.get("opt_end", ""),
+            "STEM_OPT_Requested_From_(mm-dd-yyyy)": self._format_date(student_data.get("opt_start", "")),
+            "STEM_OPT_Requested_To_(mm-dd-yyyy)": self._format_date(student_data.get("opt_end", "")),
             "Employment_Authorization_Number": student_data.get("ead_number", ""),
             
             # Section 2 - Student Certification
@@ -141,7 +184,7 @@ class FormFiller:
             
             # Training Plan (Section 5)
             "Start_Date_of_Employment_(mm-dd-yyyy)": 
-                training_plan.get("start_date", ""),
+                self._format_date(training_plan.get("start_date", "")),
             "OPT_Hours_Per_Week(must_be_at_least_20_hours/week)": 
                 str(training_plan.get("hours_per_week", "40")),
             "Salary_Amount_and_Frequency": 

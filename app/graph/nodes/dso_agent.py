@@ -299,10 +299,19 @@ def dso_agent_node(state: VisaGuardState) -> dict:
     
     # Check if we're awaiting approval
     if state.get("awaiting_human_approval") and state.get("human_approval_type") == "form_generation":
-        # Check if we have approval
+        # Check if we have EXPLICIT approval
         feedback = state.get("human_feedback", "")
         
-        if "approve" in feedback.lower() or feedback == "":
+        # SAFETY: Silence does NOT mean consent for federal documents
+        # Require explicit approval keywords
+        is_approved = (
+            "approve" in feedback.lower() or
+            "yes" in feedback.lower() or
+            "generate" in feedback.lower() or
+            "confirm" in feedback.lower()
+        )
+        
+        if is_approved:
             # Generate the form
             # In production, these would be fetched from secure storage
             student_data = state.get("student_data", {})
@@ -336,13 +345,18 @@ def dso_agent_node(state: VisaGuardState) -> dict:
                     "awaiting_human_approval": False,
                 }
         else:
-            # Rejected or needs revision
+            # Not explicitly approved - pause and ask for explicit confirmation
+            # This handles empty feedback, rejections, and unclear responses
             return {
                 **state,
                 "awaiting_human_approval": False,
                 "messages": state.get("messages", []) + [{
                     "role": "assistant",
-                    "content": "Form generation cancelled based on human review."
+                    "content": (
+                        "❌ Form generation paused. "
+                        "Please type **'Approve'** or **'Yes'** to proceed, "
+                        "or provide feedback to make changes."
+                    )
                 }],
             }
     
