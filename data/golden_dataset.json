@@ -1,0 +1,272 @@
+{
+    "version": "1.0",
+    "description": "Golden Dataset for VisaGuard Compliance Agent Evaluation",
+    "scenarios": [
+        {
+            "id": "OPT001",
+            "category": "unemployment_violation",
+            "description": "Student exceeds 90-day unemployment limit on post-completion OPT",
+            "input": {
+                "opt_type": "post_completion",
+                "opt_start_date": "2025-01-15",
+                "opt_end_date": "2026-01-14",
+                "employment_history": [
+                    {
+                        "employer": "TechCorp",
+                        "start_date": "2025-01-15",
+                        "end_date": "2025-03-01"
+                    }
+                ],
+                "current_date": "2025-06-15"
+            },
+            "expected": {
+                "violation_flag": true,
+                "violation_type": "unemployment_exceeded",
+                "unemployment_days": 106,
+                "limit_days": 90,
+                "message": "Student has exceeded the 90-day unemployment limit by 16 days."
+            }
+        },
+        {
+            "id": "OPT002",
+            "category": "unemployment_warning",
+            "description": "Student approaching unemployment limit (88/90 days)",
+            "input": {
+                "opt_type": "post_completion",
+                "opt_start_date": "2025-01-15",
+                "opt_end_date": "2026-01-14",
+                "employment_history": [
+                    {
+                        "employer": "StartupXYZ",
+                        "start_date": "2025-01-15",
+                        "end_date": "2025-02-15"
+                    }
+                ],
+                "current_date": "2025-05-14"
+            },
+            "expected": {
+                "violation_flag": false,
+                "warning_flag": true,
+                "warning_level": "critical",
+                "unemployment_days": 88,
+                "days_remaining": 2,
+                "message": "CRITICAL: Only 2 days of unemployment allowance remaining."
+            }
+        },
+        {
+            "id": "OPT003",
+            "category": "job_relatedness_violation",
+            "description": "Job is not related to STEM degree (barista vs Computer Science)",
+            "input": {
+                "degree_major": "Computer Science",
+                "degree_cip_code": "11.0701",
+                "job_title": "Barista",
+                "job_description": "Prepare coffee drinks and serve customers at a cafe",
+                "employer_naics": "722515"
+            },
+            "expected": {
+                "violation_flag": true,
+                "violation_type": "job_not_related_to_degree",
+                "message": "The position 'Barista' does not appear directly related to the qualifying STEM degree in Computer Science."
+            }
+        },
+        {
+            "id": "OPT004",
+            "category": "job_relatedness_valid",
+            "description": "Software Engineer job is related to Computer Science degree",
+            "input": {
+                "degree_major": "Computer Science",
+                "degree_cip_code": "11.0701",
+                "job_title": "Software Engineer",
+                "job_description": "Design, develop, and maintain software applications using Python and cloud technologies",
+                "employer_naics": "541511"
+            },
+            "expected": {
+                "violation_flag": false,
+                "message": "The position 'Software Engineer' is directly related to the qualifying STEM degree in Computer Science."
+            }
+        },
+        {
+            "id": "OPT005",
+            "category": "hours_violation",
+            "description": "Student working less than 20 hours per week on STEM OPT",
+            "input": {
+                "opt_type": "stem_extension",
+                "hours_per_week": 15
+            },
+            "expected": {
+                "violation_flag": true,
+                "violation_type": "insufficient_hours",
+                "message": "STEM OPT requires at least 20 hours per week. Current: 15 hours."
+            }
+        },
+        {
+            "id": "OPT006",
+            "category": "hours_valid",
+            "description": "Student working exactly 20 hours per week (minimum threshold)",
+            "input": {
+                "opt_type": "stem_extension",
+                "hours_per_week": 20
+            },
+            "expected": {
+                "violation_flag": false,
+                "message": "Employment meets minimum hours requirement (20 hours/week)."
+            }
+        },
+        {
+            "id": "OPT007",
+            "category": "employer_verification",
+            "description": "Employer not enrolled in E-Verify (required for STEM OPT)",
+            "input": {
+                "opt_type": "stem_extension",
+                "employer_name": "SmallBiz LLC",
+                "employer_e_verify_enrolled": false
+            },
+            "expected": {
+                "violation_flag": true,
+                "violation_type": "employer_not_e_verify",
+                "message": "STEM OPT extension requires employment with an E-Verify enrolled employer. SmallBiz LLC is not enrolled."
+            }
+        },
+        {
+            "id": "OPT008",
+            "category": "grace_period",
+            "description": "Student within 60-day grace period after OPT end",
+            "input": {
+                "opt_type": "post_completion",
+                "opt_end_date": "2025-06-15",
+                "current_date": "2025-07-15",
+                "has_pending_stem_application": false
+            },
+            "expected": {
+                "violation_flag": false,
+                "status": "grace_period",
+                "days_remaining": 30,
+                "message": "Student is within the 60-day grace period. 30 days remaining to depart or change status."
+            }
+        },
+        {
+            "id": "OPT009",
+            "category": "grace_period_expired",
+            "description": "Student exceeded grace period without action",
+            "input": {
+                "opt_type": "post_completion",
+                "opt_end_date": "2025-06-15",
+                "current_date": "2025-09-01",
+                "has_pending_stem_application": false,
+                "has_pending_status_change": false
+            },
+            "expected": {
+                "violation_flag": true,
+                "violation_type": "grace_period_expired",
+                "message": "The 60-day grace period has expired. Student may be out of status."
+            }
+        },
+        {
+            "id": "OPT010",
+            "category": "stem_unemployment",
+            "description": "STEM OPT student at 150-day unemployment limit",
+            "input": {
+                "opt_type": "stem_extension",
+                "cumulative_unemployment_days": 150
+            },
+            "expected": {
+                "violation_flag": false,
+                "warning_flag": true,
+                "warning_level": "critical",
+                "message": "STEM OPT maximum unemployment (150 days) reached. Must secure employment immediately."
+            }
+        },
+        {
+            "id": "OPT011",
+            "category": "multiple_employers",
+            "description": "Valid concurrent employment with multiple employers",
+            "input": {
+                "opt_type": "stem_extension",
+                "employers": [
+                    {
+                        "name": "TechCorp",
+                        "hours_per_week": 15,
+                        "is_e_verify": true
+                    },
+                    {
+                        "name": "AIStartup",
+                        "hours_per_week": 10,
+                        "is_e_verify": true
+                    }
+                ]
+            },
+            "expected": {
+                "violation_flag": false,
+                "total_hours": 25,
+                "message": "Combined hours (25/week) meet minimum requirement. Both employers are E-Verify enrolled."
+            }
+        },
+        {
+            "id": "OPT012",
+            "category": "unpaid_employment",
+            "description": "Unpaid internship during OPT (allowed but must be documented)",
+            "input": {
+                "opt_type": "post_completion",
+                "salary_amount": 0,
+                "is_internship": true,
+                "hours_per_week": 40
+            },
+            "expected": {
+                "violation_flag": false,
+                "warning_flag": true,
+                "warning_level": "info",
+                "message": "Unpaid employment is permitted but must be properly documented. Ensure job is directly related to field of study."
+            }
+        },
+        {
+            "id": "OPT013",
+            "category": "cap_gap",
+            "description": "Student in cap-gap extension waiting for H-1B",
+            "input": {
+                "opt_type": "post_completion",
+                "opt_end_date": "2025-06-01",
+                "current_date": "2025-08-15",
+                "h1b_petition_status": "pending",
+                "h1b_receipt_date": "2025-04-01"
+            },
+            "expected": {
+                "violation_flag": false,
+                "status": "cap_gap",
+                "message": "Student is in cap-gap extension. OPT and employment authorization extended until October 1 or H-1B decision."
+            }
+        },
+        {
+            "id": "OPT014",
+            "category": "reporting_violation",
+            "description": "Student failed to report employer change within 10 days",
+            "input": {
+                "opt_type": "stem_extension",
+                "employer_change_date": "2025-03-01",
+                "report_date": "2025-03-20",
+                "reporting_deadline_days": 10
+            },
+            "expected": {
+                "violation_flag": true,
+                "violation_type": "late_reporting",
+                "days_late": 9,
+                "message": "Employer change must be reported within 10 days. Reported 9 days late."
+            }
+        },
+        {
+            "id": "OPT015",
+            "category": "self_employment",
+            "description": "Self-employment on STEM OPT (not allowed)",
+            "input": {
+                "opt_type": "stem_extension",
+                "employment_type": "self_employed",
+                "business_name": "MyConsulting LLC"
+            },
+            "expected": {
+                "violation_flag": true,
+                "violation_type": "self_employment_stem",
+                "message": "Self-employment is not permitted on STEM OPT extension. An employer-employee relationship is required."
+            }
+        }
+    ]
+}
