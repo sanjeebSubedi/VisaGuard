@@ -8,17 +8,28 @@ Key principles:
 - Hash first, parse only if needed, store results
 - NEVER persist raw_text (with PII) to disk - only scrubbed_text is cached
 - Use markdown mode for table preservation in forms
+
+IMPORTANT - Form Filling Paradox:
+- We scrub PII before storing, but we need real data (names, IDs) to fill forms later.
+- Solution: extracted_fields (containing real values) must be extracted BEFORE scrubbing.
+- The extracted_fields are stored SEPARATELY (encrypted in Postgres in production).
+- The scrubbed_text goes to the Vector DB for RAG queries.
+- This gives us: privacy-preserving RAG + real data for form filling.
 """
 
 import hashlib
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 
 from pydantic import BaseModel, Field
 
 from app.core.config import DATA_DIR, LLAMA_CLOUD_API_KEY
 from app.privacy.pipeline import get_privacy_pipeline
+
+
+# Type alias for field extraction function
+FieldExtractor = Callable[[str], dict]
 
 
 class ParsedDocument(BaseModel):
@@ -32,8 +43,12 @@ class ParsedDocument(BaseModel):
         description="Full extracted text (in-memory only, NEVER persisted to disk)",
         exclude=True  # Exclude from serialization to prevent PII leakage
     )
-    scrubbed_text: str = Field(description="Text with PII removed (safe to persist)")
-    extracted_fields: dict = Field(default_factory=dict, description="Structured data extracted from document")
+    scrubbed_text: str = Field(description="Text with PII removed (safe for Vector DB)")
+    extracted_fields: dict = Field(
+        default_factory=dict, 
+        description="Structured data extracted BEFORE scrubbing (contains real values for form filling)",
+        exclude=True  # Also exclude - this goes to encrypted DB, not cache file
+    )
     metadata: dict = Field(default_factory=dict)
 
 
@@ -127,24 +142,32 @@ class IngestionService:
     def ingest_pdf(
         self,
         file_path: Path,
-        extract_fields: bool = True
+        field_extractor: Optional[FieldExtractor] = None,
     ) -> ParsedDocument:
         """
         Ingest a PDF document with caching and privacy scrubbing.
         
+        CRITICAL ARCHITECTURE NOTE:
+        If you need to fill forms later (with real PII values), you MUST provide
+        a field_extractor callback. This extracts structured data BEFORE scrubbing.
+        The extracted_fields (with real values) should be stored in an encrypted
+        database column, NOT in the cache file.
+        
         Process:
         1. Compute SHA-256 hash
-        2. Check cache for existing parse
+        2. Check cache for existing parse (returns scrubbed_text only)
         3. If not cached, parse with LlamaParse
-        4. Apply privacy scrubbing
-        5. Cache the result
+        4. **Extract structured fields BEFORE scrubbing** (if extractor provided)
+        5. Apply privacy scrubbing
+        6. Cache the scrubbed result (extracted_fields NOT cached - store separately)
         
         Args:
             file_path: Path to the PDF file.
-            extract_fields: Whether to attempt structured field extraction.
+            field_extractor: Optional callback to extract structured fields from raw text.
+                           This runs BEFORE scrubbing so it sees real values.
             
         Returns:
-            ParsedDocument with both raw and scrubbed text.
+            ParsedDocument with scrubbed_text and extracted_fields (in memory).
         """
         file_path = Path(file_path)
         if not file_path.exists():
@@ -156,29 +179,38 @@ class IngestionService:
         # Step 2: Check cache
         cached = self.load_from_cache(content_hash)
         if cached:
+            # NOTE: cached version only has scrubbed_text, not extracted_fields
+            # If caller needs extracted_fields, they must re-parse or load from DB
             return cached
         
-        # Step 3: Parse document
+        # Step 3: Parse document (raw text with PII)
         raw_text = self.parse_with_llamaparse(file_path)
         
-        # Step 4: Apply privacy scrubbing
+        # Step 4: EXTRACT FIELDS BEFORE SCRUBBING (critical for form filling)
+        extracted_fields = {}
+        if field_extractor:
+            extracted_fields = field_extractor(raw_text)
+            # NOTE: Caller is responsible for storing extracted_fields securely
+            # (e.g., encrypted column in Postgres)
+        
+        # Step 5: Apply privacy scrubbing
         scrubbed_text = self.privacy_pipeline.scrub(raw_text)
         
-        # Step 5: Create document record
+        # Step 6: Create document record
         doc = ParsedDocument(
-            document_id=content_hash[:16],  # Short ID for convenience
+            document_id=content_hash[:16],
             original_filename=file_path.name,
             content_hash=content_hash,
-            raw_text=raw_text,
+            raw_text=raw_text,  # In-memory only, not persisted
             scrubbed_text=scrubbed_text,
-            extracted_fields={},  # Will be populated by DocumentAgent
+            extracted_fields=extracted_fields,  # In-memory only, not persisted
             metadata={
                 "file_size_bytes": file_path.stat().st_size,
                 "parse_method": "llamaparse",
             }
         )
         
-        # Step 6: Cache the result
+        # Step 7: Cache (only scrubbed_text and metadata - NO PII)
         self.save_to_cache(doc)
         
         return doc

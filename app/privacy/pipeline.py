@@ -9,7 +9,7 @@ Key principle: Scrub ONCE on upload, store the scrubbed text.
 
 from typing import Optional
 
-from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
+from presidio_analyzer import AnalyzerEngine, RecognizerRegistry, Pattern, PatternRecognizer
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
@@ -47,7 +47,7 @@ class PrivacyPipeline:
         self._init_anonymizer()
     
     def _init_analyzer(self) -> None:
-        """Initialize the Presidio Analyzer with NLP engine."""
+        """Initialize the Presidio Analyzer with NLP engine and custom recognizers."""
         # Use spaCy as the NLP engine
         configuration = {
             "nlp_engine_name": "spacy",
@@ -60,13 +60,42 @@ class PrivacyPipeline:
         registry = RecognizerRegistry()
         registry.load_predefined_recognizers(nlp_engine=nlp_engine)
         
+        # --- CUSTOM F-1 SPECIFIC RECOGNIZERS ---
+        
+        # 1. SEVIS ID (Format: N followed by 10 digits, e.g., N0012345678)
+        sevis_pattern = Pattern(name="sevis_pattern", regex=r"N\d{10}", score=0.95)
+        sevis_recognizer = PatternRecognizer(
+            supported_entity="SEVIS_ID",
+            patterns=[sevis_pattern],
+            supported_language=self.language,
+        )
+        registry.add_recognizer(sevis_recognizer)
+        
+        # 2. USCIS Case Number (Format: 3 letters + 10 digits, e.g., YSC1234567890)
+        uscis_pattern = Pattern(name="uscis_pattern", regex=r"[A-Z]{3}\d{10}", score=0.95)
+        uscis_recognizer = PatternRecognizer(
+            supported_entity="USCIS_CASE_NO",
+            patterns=[uscis_pattern],
+            supported_language=self.language,
+        )
+        registry.add_recognizer(uscis_recognizer)
+        
+        # 3. Alien Registration Number / A-Number (Format: A followed by 8-9 digits)
+        a_number_pattern = Pattern(name="a_number_pattern", regex=r"A\d{8,9}", score=0.95)
+        a_number_recognizer = PatternRecognizer(
+            supported_entity="A_NUMBER",
+            patterns=[a_number_pattern],
+            supported_language=self.language,
+        )
+        registry.add_recognizer(a_number_recognizer)
+        
         self.analyzer = AnalyzerEngine(
             nlp_engine=nlp_engine,
             registry=registry
         )
     
     def _init_anonymizer(self) -> None:
-        """Initialize the Presidio Anonymizer."""
+        """Initialize the Presidio Anonymizer with F-1 specific operators."""
         self.anonymizer = AnonymizerEngine()
         
         # Define how each entity type should be replaced
@@ -77,7 +106,11 @@ class PrivacyPipeline:
             "US_SSN": OperatorConfig("replace", {"new_value": "[SSN_REDACTED]"}),
             "US_PASSPORT": OperatorConfig("replace", {"new_value": "[PASSPORT_REDACTED]"}),
             "CREDIT_CARD": OperatorConfig("replace", {"new_value": "[CREDIT_CARD]"}),
-            # Custom entities for F-1 specific data
+            # F-1 specific entities
+            "SEVIS_ID": OperatorConfig("replace", {"new_value": "[SEVIS_ID]"}),
+            "USCIS_CASE_NO": OperatorConfig("replace", {"new_value": "[USCIS_CASE]"}),
+            "A_NUMBER": OperatorConfig("replace", {"new_value": "[A_NUMBER]"}),
+            # Fallback
             "DEFAULT": OperatorConfig("replace", {"new_value": "[REDACTED]"}),
         }
     

@@ -93,3 +93,39 @@ class TestPrivacyPipeline:
         assert len(entities) >= 1
         assert entities[0]["entity_type"] == "US_SSN"
         assert entities[0]["text"] == "111-22-3333"
+
+    def test_scrub_sevis_id(self):
+        """SEVIS IDs (N followed by 10 digits) should be redacted."""
+        from app.privacy.pipeline import PrivacyPipeline
+        
+        pipeline = PrivacyPipeline()
+        text = "My SEVIS ID is N0012345678"
+        
+        scrubbed = pipeline.scrub(text)
+        
+        assert "N0012345678" not in scrubbed
+        assert "[SEVIS_ID]" in scrubbed
+
+    def test_scrub_uscis_case_number(self):
+        """USCIS Case Numbers (3 letters + 10 digits) should be redacted."""
+        from app.privacy.pipeline import PrivacyPipeline
+        
+        pipeline = PrivacyPipeline()
+        text = "Case number: YSC1234567890"
+        
+        scrubbed = pipeline.scrub(text)
+        
+        assert "YSC1234567890" not in scrubbed
+        assert "[USCIS_CASE]" in scrubbed
+
+    def test_scrub_a_number(self):
+        """A-Numbers (A followed by 8-9 digits) should be redacted."""
+        from app.privacy.pipeline import PrivacyPipeline
+        
+        pipeline = PrivacyPipeline()
+        text = "Alien number: A123456789"
+        
+        scrubbed = pipeline.scrub(text)
+        
+        assert "A123456789" not in scrubbed
+        assert "[A_NUMBER]" in scrubbed
