@@ -90,6 +90,38 @@ class I20Parser(BaseParser):
         
         return text
     
+    def _extract_from_table(self, text: str, header_pattern: str) -> list[str]:
+        """
+        Extract values from table cells below a header.
+        
+        Args:
+            text: The document text
+            header_pattern: Regex pattern to find the header row
+            
+        Returns:
+            List of cell values from the data row below the header
+        """
+        # Find the header row
+        header_match = re.search(header_pattern, text, re.IGNORECASE | re.MULTILINE)
+        if not header_match:
+            return []
+        
+        # Get text after the header
+        remaining_text = text[header_match.end():]
+        
+        # Skip separator row (usually dashes or equals)
+        lines = remaining_text.split('\n')
+        for i, line in enumerate(lines[:5]):  # Check first 5 lines
+            # Skip empty lines and separator lines
+            if not line.strip() or re.match(r'^[\s\|\-=]+$', line):
+                continue
+            # Found a data row - extract cell values
+            # Split by pipe and filter out empty cells
+            cells = [cell.strip() for cell in line.split('|') if cell.strip()]
+            return cells
+        
+        return []
+    
     def extract_fields(self, text: str) -> Dict[str, Any]:
         """
         Extract structured fields from I-20 with robust pattern matching.
@@ -150,7 +182,7 @@ class I20Parser(BaseParser):
             r'\d{4}[/-]\d{1,2}[/-]\d{1,2}',     # 2024/01/15
         ]
         
-        # Program start date
+        # Program start date - try labeled fields first
         start_labels = [
             r'PROGRAM\s+START\s+DATE',
             r'Program\s+begins',
@@ -168,23 +200,38 @@ class I20Parser(BaseParser):
             if 'program_start_date' in fields:
                 break
         
-        # Program end date
-        end_labels = [
-            r'PROGRAM\s+END\s+DATE',
-            r'Program\s+ends?',
-            r'End\s+Date',
-            r'Expected\s+Completion',
-        ]
+        # If not found, try extracting from table
+        if 'program_start_date' not in fields:
+            # Look for table with start/end date columns
+            date_cells = self._extract_from_table(text, r'START\s+DATE.*END\s+DATE')
+            if len(date_cells) >= 2:
+                # First cell should be start date, second is end date
+                for cell in date_cells:
+                    for pattern in date_patterns:
+                        if re.match(pattern, cell.strip()):
+                            if 'program_start_date' not in fields:
+                                fields['program_start_date'] = cell.strip()
+                            elif 'program_end_date' not in fields:
+                                fields['program_end_date'] = cell.strip()
         
-        for label in end_labels:
-            for date_pattern in date_patterns:
-                full_pattern = f'{label}\\s*:?\\s*({date_pattern})'
-                end_match = re.search(full_pattern, text, re.IGNORECASE)
-                if end_match:
-                    fields['program_end_date'] = end_match.group(1).strip()
+        # Program end date - try labeled fields
+        if 'program_end_date' not in fields:
+            end_labels = [
+                r'PROGRAM\s+END\s+DATE',
+                r'Program\s+ends?',
+                r'End\s+Date',
+                r'Expected\s+Completion',
+            ]
+            
+            for label in end_labels:
+                for date_pattern in date_patterns:
+                    full_pattern = f'{label}\\s*:?\\s*({date_pattern})'
+                    end_match = re.search(full_pattern, text, re.IGNORECASE)
+                    if end_match:
+                        fields['program_end_date'] = end_match.group(1).strip()
+                        break
+                if 'program_end_date' in fields:
                     break
-            if 'program_end_date' in fields:
-                break
         
         # === EDUCATION LEVEL ===
         level_patterns = [
