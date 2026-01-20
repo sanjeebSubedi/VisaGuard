@@ -137,9 +137,90 @@ class PrivacyPipeline:
             for r in results
         ]
     
+    def _is_false_positive(self, text: str, entity: dict, full_text: str) -> bool:
+        """
+        Determine if a detected PERSON entity is likely a false positive.
+        
+        Uses context-aware rules to filter out:
+        - Technical terms (Python, FastAPI, etc.)
+        - Common address words (Street, Drive, Avenue, etc.)
+        - Words in technical contexts (after "using", "with", etc.)
+        
+        Args:
+            text: The detected entity text
+            entity: The analyzer result with start/end positions
+            full_text: The complete text being analyzed
+            
+        Returns:
+            True if this is likely a false positive, False if it's likely real PII
+        """
+        # Allowlist: Common technical terms and programming languages
+        TECH_ALLOWLIST = {
+            # Languages
+            "python", "java", "javascript", "typescript", "c++", "c#",
+            "ruby", "go", "rust", "swift", "kotlin", "scala",
+            # Frameworks/Libraries
+            "react", "angular", "vue", "django", "flask", "fastapi",
+            "spring", "express", "nextjs", "tensorflow", "pytorch",
+            # Databases
+            "postgresql", "mysql", "mongodb", "redis", "elasticsearch",
+            # Tools/Platforms
+            "docker", "kubernetes", "aws", "azure", "gcp", "github",
+            "linux", "unix", "windows", "macos",
+            # Common tech words
+            "api", "rest", "graphql", "json", "xml", "html", "css",
+            "selenium", "pytest", "junit", "git", "ci/cd"
+        }
+        
+        # Address components that get mis-identified as names
+        ADDRESS_ALLOWLIST = {
+            "street", "drive", "avenue", "road", "lane", "way", "boulevard",
+            "court", "place", "circle", "terrace", "parkway",
+            "innovation", "technology", "business", "industrial", "corporate",
+            "north", "south", "east", "west", "main", "center", "central"
+        }
+        
+        # Check if the detected text is in allowlists (case-insensitive)
+        text_lower = text.lower().strip()
+        
+        if text_lower in TECH_ALLOWLIST or text_lower in ADDRESS_ALLOWLIST:
+            return True
+        
+        # Check for technical context patterns
+        # Get surrounding text (50 chars before and after)
+        start = max(0, entity["start"] - 50)
+        end = min(len(full_text), entity["end"] + 50)
+        context = full_text[start:end].lower()
+        
+        # Technical context indicators
+        TECH_PATTERNS = [
+            "using " + text_lower,
+            "with " + text_lower,
+            "in " + text_lower,
+            text_lower + " and",
+            text_lower + " framework",
+            text_lower + " library",
+            "include " + text_lower,
+            "such as " + text_lower,
+        ]
+        
+        for pattern in TECH_PATTERNS:
+            if pattern in context:
+                return True
+        
+        # Address pattern: number + street name
+        # e.g., "1234 Innovation Drive" - don't redact the street name
+        if entity["start"] > 0:
+            before_text = full_text[max(0, entity["start"] - 10):entity["start"]]
+            # Check if there's a number right before this
+            if any(char.isdigit() for char in before_text):
+                return True
+        
+        return False
+    
     def scrub(self, text: str) -> str:
         """
-        Detect and redact all PII from the given text.
+        Detect and redact all PII from the given text with context-aware filtering.
         
         This is the main method to use before sending text to LLMs.
         
@@ -159,10 +240,30 @@ class PrivacyPipeline:
         if not analyzer_results:
             return text
         
-        # Anonymize detected entities
+        # Filter out false positives for PERSON entities
+        filtered_results = []
+        for result in analyzer_results:
+            if result.entity_type == "PERSON":
+                entity_text = text[result.start:result.end]
+                entity_dict = {
+                    "start": result.start,
+                    "end": result.end,
+                    "text": entity_text
+                }
+                
+                if not self._is_false_positive(entity_text, entity_dict, text):
+                    filtered_results.append(result)
+            else:
+                # Keep all non-PERSON entities as-is
+                filtered_results.append(result)
+        
+        if not filtered_results:
+            return text
+        
+        # Anonymize filtered entities
         anonymized = self.anonymizer.anonymize(
             text=text,
-            analyzer_results=analyzer_results,
+            analyzer_results=filtered_results,
             operators=self.operators
         )
         

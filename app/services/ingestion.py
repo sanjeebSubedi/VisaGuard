@@ -16,6 +16,13 @@ IMPORTANT - Form Filling Paradox:
 - The scrubbed_text goes to the Vector DB for RAG queries.
 - This gives us: privacy-preserving RAG + real data for form filling.
 """
+import sys
+from pathlib import Path
+
+# Add project root to path for imports (allows running this file directly)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 import hashlib
 import json
@@ -246,14 +253,6 @@ def get_ingestion_service() -> IngestionService:
 
 if __name__ == "__main__":
 
-    import sys
-from pathlib import Path
-
-# Add project root to path for imports (allows running this file directly)
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
     # Test the ingestion service with a sample offer letter
     from app.core.config import DATA_DIR
     
@@ -271,13 +270,9 @@ if str(PROJECT_ROOT) not in sys.path:
         
         print(f"\n✅ Successfully ingested!")
         print(f"   Document ID: {doc.document_id}")
-        print(f"   Content Hash: {doc.content_hash[:16]}...")
+        print(f"   Content Hash: {doc.content_hash}")
         print(f"   Scrubbed Text Length: {len(doc.scrubbed_text)} chars")
         print(f"\n   First 200 chars of scrubbed text:")
-        print(f"   {doc.scrubbed_text[:200]}...")
+        print(f"   {doc.scrubbed_text}")
 
 
-if __name__ == "__main__":
-    ingestion_service = get_ingestion_service()
-    doc = ingestion_service.ingest_pdf("data/templates/OPT_offer_letter_sample.pdf")
-    print(doc)
