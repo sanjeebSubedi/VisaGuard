@@ -74,6 +74,20 @@ class I20Parser(BaseParser):
             flags=re.IGNORECASE
         )
         
+        # Pattern 6: Table rows with student name (CRITICAL!)
+        # I-20 has a table like:
+        # | **SURNAME/PRIMARY NAME** | **GIVEN NAME** | **Class of Admission** |
+        # | ------------------------ | -------------- | ---------------------- |
+        # | Subedi                   | Sanjeeb        | F-1                    |
+        #
+        # We need to redact the name cells in the data row
+        text = re.sub(
+            r'(\| \*\*SURNAME/PRIMARY NAME\*\*.*\n\|.*\n)\|\s*(\w+)\s*\|\s*(\w+)\s*\|(.+)',
+            r'\1| [SURNAME] | [GIVEN_NAME] |\4',
+            text,
+            flags=re.IGNORECASE
+        )
+        
         return text
     
     def extract_fields(self, text: str) -> Dict[str, Any]:
