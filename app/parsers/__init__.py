@@ -1,19 +1,28 @@
 """
-Document Parser Module
+Document Parsers Module
 
-Provides specialized parsers for different document types (I-20, Offer Letter, etc.)
-with document-specific field extraction and privacy handling.
+Provides specialized parsing and PII redaction for each supported document type.
+Each parser knows the exact structure of its document, enabling:
+- Precise field extraction
+- Targeted PII redaction (no false positives)
+- Structured data output
 """
 
-from app.parsers.base import BaseParser, DocumentType
+from app.parsers.base import BaseParser, DocumentType, ParsedDocument
+from app.parsers.registry import ParserRegistry, get_parser
+
+# Import specialized parsers to trigger registration
+from app.parsers.generic import GenericParser
 from app.parsers.i20_parser import I20Parser
 from app.parsers.offer_letter_parser import OfferLetterParser
-from app.parsers.registry import get_parser
 
 __all__ = [
     "BaseParser",
     "DocumentType",
+    "ParsedDocument",
+    "ParserRegistry",
+    "get_parser",
+    "GenericParser",
     "I20Parser",
     "OfferLetterParser",
-    "get_parser",
 ]

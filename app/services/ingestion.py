@@ -116,96 +116,60 @@ class IngestionService:
             json.dump(doc.model_dump(), f, indent=2)
         
     
-    def parse_with_llamaparse(self, file_path: Path, timeout_seconds: int = 30) -> str:
+    def parse_with_llamaparse(self, file_path: Path) -> str:
         """
-        Parse a PDF using LlamaParse with timeout and pypdf fallback.
+        Parse a PDF using LlamaParse.
         
         Returns the extracted content in markdown format (preserves tables).
-        Falls back to pypdf if LlamaParse times out or fails.
         """
         if not LLAMA_CLOUD_API_KEY:
-            print("⚠️  LLAMA_CLOUD_API_KEY not set, using pypdf fallback...")
-            return self._parse_with_pypdf(file_path)
+            raise ValueError(
+                "LLAMA_CLOUD_API_KEY not set. "
+                "Please configure it in your .env file."
+            )
         
-        # Try LlamaParse with timeout
-        try:
-            from llama_parse import LlamaParse
-            import signal
-            
-            def timeout_handler(signum, frame):
-                raise TimeoutError("LlamaParse timed out")
-            
-            # Set timeout alarm (Unix only)
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(timeout_seconds)
-            
-            try:
-                parser = LlamaParse(
-                    api_key=LLAMA_CLOUD_API_KEY,
-                    result_type="markdown",  # Preserve table structure for forms
-                    verbose=False,
-                )
-                
-                # Parse the document
-                documents = parser.load_data(str(file_path))
-                
-                # Combine all pages
-                full_text = "\n\n".join([doc.text for doc in documents])
-                
-                # Cancel timeout
-                signal.alarm(0)
-                return full_text
-                
-            except TimeoutError:
-                signal.alarm(0)
-                print(f"⚠️  LlamaParse timed out after {timeout_seconds}s, falling back to pypdf...")
-                return self._parse_with_pypdf(file_path)
-                
-        except Exception as e:
-            print(f"⚠️  LlamaParse failed ({e}), falling back to pypdf...")
-            return self._parse_with_pypdf(file_path)
-    
-    def _parse_with_pypdf(self, file_path: Path) -> str:
-        """Fallback parser using pypdf (no network required)."""
-        try:
-            import pypdf
-            
-            with open(file_path, 'rb') as f:
-                reader = pypdf.PdfReader(f)
-                text = '\n\n'.join(page.extract_text() for page in reader.pages)
-                return text
-        except Exception as e:
-            raise ValueError(f"Both LlamaParse and pypdf failed: {e}")
+        # Import here to avoid loading if not needed
+        from llama_parse import LlamaParse
+        
+        parser = LlamaParse(
+            api_key=LLAMA_CLOUD_API_KEY,
+            result_type="markdown",  # Preserve table structure for forms
+            verbose=False,
+        )
+        
+        # Parse the document
+        documents = parser.load_data(str(file_path))
+        
+        # Combine all pages
+        full_text = "\n\n".join([doc.text for doc in documents])
+        return full_text
 
     def ingest_pdf(
         self,
         file_path: Path,
         field_extractor: Optional[FieldExtractor] = None,
-        document_type: Optional[str] = None,
     ) -> ParsedDocument:
         """
         Ingest a PDF document with caching and privacy scrubbing.
         
         CRITICAL ARCHITECTURE NOTE:
-        If you specify a document_type, the appropriate document-specific parser
-        will be used for pre-redaction and field extraction. This is ESSENTIAL
-        for forms like I-20 where names appear in structured fields.
+        If you need to fill forms later (with real PII values), you MUST provide
+        a field_extractor callback. This extracts structured data BEFORE scrubbing.
+        The extracted_fields (with real values) should be stored in an encrypted
+        database column, NOT in the cache file.
         
         Process:
         1. Compute SHA-256 hash
         2. Check cache for existing parse (returns scrubbed_text only)
         3. If not cached, parse with LlamaParse
-        4. **Document-specific pre-redaction** (if document_type provided)
-        5. **Extract structured fields** (parser or custom extractor)
-        6. Apply generic privacy scrubbing
-        7. Cache the scrubbed result
+        4. **Extract structured fields BEFORE scrubbing** (if extractor provided)
+        5. Apply privacy scrubbing
+        6. Cache the scrubbed result (extracted_fields NOT cached - store separately)
         
         Args:
             file_path: Path to the PDF file.
             field_extractor: Optional callback to extract structured fields from raw text.
                            This runs BEFORE scrubbing so it sees real values.
-            document_type: Type of document ("i20", "offer_letter", etc.)
-                          If provided, uses specialized parser for pre-redaction and extraction.
             
         Returns:
             ParsedDocument with scrubbed_text and extracted_fields (in memory).
@@ -227,41 +191,17 @@ class IngestionService:
         # Step 3: Parse document (raw text with PII)
         raw_text = self.parse_with_llamaparse(file_path)
         
-        # Step 4: DOCUMENT-SPECIFIC PRE-REDACTION (New!)
-        preprocessed_text = raw_text
-        parser = None
-        
-        if document_type:
-            try:
-                from app.parsers import get_parser, DocumentType
-                
-                # Convert string to DocumentType enum
-                doc_type_enum = DocumentType(document_type.lower())
-                parser = get_parser(doc_type_enum)
-                
-                # Apply document-specific pre-redaction
-                preprocessed_text = parser.pre_redact(raw_text)
-                
-            except (ValueError, ImportError) as e:
-                # If document type is invalid or parsers not available, skip pre-redaction
-                print(f"Warning: Could not use parser for {document_type}: {e}")
-        
-        # Step 5: EXTRACT FIELDS BEFORE GENERIC SCRUBBING
+        # Step 4: EXTRACT FIELDS BEFORE SCRUBBING (critical for form filling)
         extracted_fields = {}
-        
-        if parser:
-            # Use parser's extraction (on preprocessed text with pre-redacted names)
-            # Note: Some fields may still have placeholders, which is fine
-            extracted_fields = parser.extract_fields(preprocessed_text)
-        elif field_extractor:
-            # Fallback to custom extractor (on raw text)
+        if field_extractor:
             extracted_fields = field_extractor(raw_text)
+            # NOTE: Caller is responsible for storing extracted_fields securely
+            # (e.g., encrypted column in Postgres)
         
-        # Step 6: Apply generic privacy scrubbing (context-aware)
-        # This scrubs any PII that wasn't caught by pre-redaction
-        scrubbed_text = self.privacy_pipeline.scrub(preprocessed_text)
+        # Step 5: Apply privacy scrubbing
+        scrubbed_text = self.privacy_pipeline.scrub(raw_text)
         
-        # Step 7: Create document record
+        # Step 6: Create document record
         doc = ParsedDocument(
             document_id=content_hash[:16],
             original_filename=file_path.name,
@@ -272,12 +212,10 @@ class IngestionService:
             metadata={
                 "file_size_bytes": file_path.stat().st_size,
                 "parse_method": "llamaparse",
-                "document_type": document_type,
-                "parser_used": parser.document_type.value if parser else None,
             }
         )
         
-        # Step 8: Cache (only scrubbed_text and metadata - NO PII)
+        # Step 7: Cache (only scrubbed_text and metadata - NO PII)
         self.save_to_cache(doc)
         
         return doc
@@ -315,7 +253,7 @@ def get_ingestion_service() -> IngestionService:
 
 if __name__ == "__main__":
 
-    # Test the ingestion service with I-20 using parser
+    # Test the ingestion service with a sample offer letter
     from app.core.config import DATA_DIR
     
     ingestion_service = get_ingestion_service()
@@ -325,36 +263,17 @@ if __name__ == "__main__":
     
     if not test_file.exists():
         print(f"❌ Test file not found: {test_file}")
-        print(f"   Create an I-20 PDF at this location to test.")
+        print(f"   Create a sample offer letter PDF at this location to test.")
     else:
         print(f"📄 Testing ingestion on: {test_file.name}")
-        print(f"   Using I-20 parser for pre-redaction...")
-        
-        # CRITICAL: Specify document_type to use parser!
-        doc = ingestion_service.ingest_pdf(test_file, document_type="i20")
+        doc = ingestion_service.ingest_pdf(test_file)
         
         print(f"\n✅ Successfully ingested!")
         print(f"   Document ID: {doc.document_id}")
         print(f"   Content Hash: {doc.content_hash}")
-        print(f"   Parser used: {doc.metadata.get('parser_used', 'none')}")
         print(f"   Scrubbed Text Length: {len(doc.scrubbed_text)} chars")
-        
-        # Check if critical privacy leak is fixed
-        if "Sanjeeb Subedi" in doc.scrubbed_text:
-            print(f"\n❌ PRIVACY LEAK: Name still present in scrubbed text!")
-        else:
-            print(f"\n✅ PRIVACY CHECK PASSED: No name leaks detected")
-        
-        # Show extracted fields
-        if doc.extracted_fields:
-            print(f"\n📋 Extracted {len(doc.extracted_fields)} fields:")
-            for key, value in doc.extracted_fields.items():
-                print(f"   - {key}: {value}")
-        
-        print(f"\n   Full scrubbed text:")
-        print(doc.scrubbed_text)
-        
-        # Save for inspection
+        print(f"\n   First 200 chars of scrubbed text:")
+        print(f"   {doc.scrubbed_text}")
         with open(DATA_DIR / "templates" / "i20_scrubbed.txt", "w") as f:
             f.write(doc.scrubbed_text)
 

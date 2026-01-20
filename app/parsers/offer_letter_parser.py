@@ -1,171 +1,110 @@
 """
-Offer Letter Parser
+Offer Letter Parser - Specialized parser for employment offer letters
 
-Specialized parser for employment offer letters.
-
-Key features:
-- Extracts employer information (company name, EIN, address)
-- Job details (title, start date, compensation)
-- OPT compliance statements
+Offer letters contain critical employment information for OPT:
+- Employer name, EIN, address
+- Job title, start date, hours per week
+- Compensation details
 """
 
 import re
-from typing import Dict, Any
+from datetime import datetime
+from typing import Optional
 
-from app.parsers.base import BaseParser, DocumentType
+from app.parsers.base import BaseParser, DocumentType, ParsedDocument
+from app.parsers.registry import ParserRegistry
 
 
+@ParserRegistry.register(DocumentType.OFFER_LETTER)
 class OfferLetterParser(BaseParser):
-    """Parser for employment offer letters."""
+    """
+    Parser for employment offer letters.
     
-    document_type = DocumentType.OFFER_LETTER
+    Extracts employer and position details needed for OPT compliance.
+    """
     
-    def pre_redact(self, raw_text: str) -> str:
-        """
-        Apply offer letter specific redaction.
-        
-        Offer letters have less structure than I-20, so we rely more
-        on the generic privacy pipeline. Only handle special cases here.
-        """
-        text = raw_text
-        
-        # Pattern: "Dear <Name>," at the start of letters
-        text = re.sub(
-            r'(Dear)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)(,)',
-            r'\1 [PERSON_NAME]\3',
-            text
-        )
-        
-        # Pattern: Letter signatures - "Sincerely, <Name>"
-        text = re.sub(
-            r'(Sincerely,?)\s*\n+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)',
-            r'\1\n[PERSON_NAME]',
-            text,
-            flags=re.MULTILINE
-        )
-        
-        return text
+    doc_type = DocumentType.OFFER_LETTER
     
-    def extract_fields(self, text: str) -> Dict[str, Any]:
-        """
-        Extract structured fields from offer letter.
+    # PII patterns specific to offer letters
+    PII_PATTERNS = [
+        # "Mr./Ms./Mrs. John Smith"
+        (r"(Mr\.|Ms\.|Mrs\.|Dr\.)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)", r"\1 [PERSON_NAME]"),
+        # "Dear John Smith" or "Dear Mr. Smith"
+        (r"(Dear\s+)(Mr\.|Ms\.|Mrs\.|Dr\.)?\s*([A-Z][a-z]+(\s+[A-Z][a-z]+)?)", r"\1[PERSON_NAME]"),
+        # Supervisor/Manager names after titles
+        (r"(supervised by[:\s]+)([A-Z][a-z]+\s+[A-Z][a-z]+)", r"\1[PERSON_NAME]"),
+        (r"(Manager[:\s]+)([A-Z][a-z]+\s+[A-Z][a-z]+)", r"\1[PERSON_NAME]"),
+        (r"(Supervisor[:\s]+)([A-Z][a-z]+\s+[A-Z][a-z]+)", r"\1[PERSON_NAME]"),
+        # Signatory names
+        (r"(Sincerely,?\s*\n+)([A-Z][a-z]+\s+[A-Z][a-z]+)", r"\1[PERSON_NAME]"),
+    ]
+    
+    # Field extraction patterns
+    FIELD_PATTERNS = {
+        "company_name": [
+            r"^([A-Z][A-Za-z\s&,\.]+(?:LLC|Inc|Corp|Company|Ltd))\s*$",
+            r"([\w\s]+(?:LLC|Inc|Corp|Company|Ltd))",
+        ],
+        "ein": r"(?:EIN|Employer Identification Number)[:\s]*(\d{2}[‐\-]\d{7})",
+        "position_title": [
+            r"(?:Position|Title|Role)[:\s]*([^\n]+)",
+            r"position (?:of|as)\s+([^\n\.]+)",
+        ],
+        "start_date": [
+            r"(?:Start Date|Starting|Effective)[:\s]*(\w+\s+\d{1,2},?\s*\d{4}|\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})",
+        ],
+        "hours_per_week": r"(\d{1,2})\s*hours?\s*(?:per|/)\s*week",
+        "compensation": [
+            r"\$\s*([\d,]+(?:\.\d{2})?)\s*(?:per|/)\s*(?:hour|yr|year|annually)",
+            r"(?:Salary|Compensation|Pay)[:\s]*\$\s*([\d,]+(?:\.\d{2})?)",
+        ],
+        "work_location": r"(?:Work Location|Office|Located at)[:\s]*([^\n]+)",
+    }
+    
+    def pre_redact(self, text: str) -> str:
+        """Apply offer letter specific PII redaction."""
+        result = text
         
-        Fields extracted:
-        - Company name
-        - EIN (Employer Identification Number)
-        - Job title
-        - Start date
-        - Compensation
-        - Hours per week
-        - Work location
+        for pattern, replacement in self.PII_PATTERNS:
+            result = re.sub(pattern, replacement, result, flags=re.IGNORECASE | re.MULTILINE)
+        
+        return result
+    
+    def extract_fields(self, text: str) -> dict:
+        """
+        Extract employment details from offer letter.
+        
+        Returns dict with company, position, dates, compensation, etc.
         """
         fields = {}
         
-        # Company name (usually in letterhead or first paragraph)
-        # Look for company patterns
-        company_match = re.search(
-            r'(?:^|\n)([A-Z][A-Za-z\s&,\.]+(?:LLC|Inc|Corp|Corporation|Ltd|Company))',
-            text
-        )
-        if company_match:
-            fields['company_name'] = company_match.group(1).strip()
-        
-        # EIN - Format: 12-3456789
-        ein_match = re.search(r'EIN[:\s]+(\d{2}-\d{7})', text, flags=re.IGNORECASE)
-        if ein_match:
-            fields['ein'] = ein_match.group(1)
-        
-        # Job title
-        title_match = re.search(
-            r'(?:Position|Title|Role)(?:\s*:)?\s*([^\n]+)',
-            text,
-            flags=re.IGNORECASE
-        )
-        if title_match:
-            fields['job_title'] = title_match.group(1).strip()
-        
-        # Start date
-        start_match = re.search(
-            r'(?:Start Date|Begin|Commence)(?:\s*:)?\s*(\w+\s+\d{1,2},?\s+\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
-            text,
-            flags=re.IGNORECASE
-        )
-        if start_match:
-            fields['start_date'] = start_match.group(1).strip()
-        
-        # End date (if contract position)
-        end_match = re.search(
-            r'(?:End Date|Terminate|Conclude)(?:\s*:)?\s*(\w+\s+\d{1,2},?\s+\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
-            text,
-            flags=re.IGNORECASE
-        )
-        if end_match:
-            fields['end_date'] = end_match.group(1).strip()
-        
-        # Compensation - hourly or salary
-        compensation_match = re.search(
-            r'(?:Salary|Compensation|Pay)(?:\s*:)?\s*\$?([\d,]+(?:\.\d{2})?)\s*(?:per hour|/hour|hourly|annually|/year)?',
-            text,
-            flags=re.IGNORECASE
-        )
-        if compensation_match:
-            fields['compensation'] = compensation_match.group(1)
-            # Detect if hourly or annual
-            if 'hour' in compensation_match.group(0).lower():
-                fields['compensation_type'] = 'hourly'
-            elif 'annual' in compensation_match.group(0).lower() or 'year' in compensation_match.group(0).lower():
-                fields['compensation_type'] = 'annual'
-        
-        # Hours per week
-        hours_match = re.search(
-            r'(\d+)\s*hours?\s*(?:per week|/week|weekly)',
-            text,
-            flags=re.IGNORECASE
-        )
-        if hours_match:
-            fields['hours_per_week'] = int(hours_match.group(1))
-        
-        # Work location (city, state)
-        location_match = re.search(
-            r'(?:Location|Work site|Office)(?:\s*:)?\s*([^\n]+)',
-            text,
-            flags=re.IGNORECASE
-        )
-        if location_match:
-            fields['work_location'] = location_match.group(1).strip()
-        
-        # Check for OPT compliance statement
-        opt_compliance = bool(re.search(
-            r'(?:OPT|Optional Practical Training|F-1)',
-            text,
-            flags=re.IGNORECASE
-        ))
-        fields['mentions_opt'] = opt_compliance
+        for field_name, patterns in self.FIELD_PATTERNS.items():
+            # Handle single pattern or list of patterns
+            if isinstance(patterns, str):
+                patterns = [patterns]
+            
+            for pattern in patterns:
+                match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+                if match:
+                    fields[field_name] = match.group(1).strip()
+                    break
         
         return fields
     
-    def validate_fields(self, fields: Dict[str, Any]) -> tuple[bool, list[str]]:
-        """
-        Validate that critical offer letter fields were extracted.
+    def post_process(self, doc: ParsedDocument) -> ParsedDocument:
+        """Validate employment details."""
         
-        Required fields:
-        - Company name
-        - Job title
-        - Start date
-        """
-        errors = []
+        # Warn if hours < 20 (minimum for STEM OPT)
+        hours = doc.extracted_fields.get("hours_per_week")
+        if hours:
+            try:
+                if int(hours) < 20:
+                    doc.warnings.append(f"Hours per week ({hours}) is below STEM OPT minimum of 20")
+            except ValueError:
+                pass
         
-        if not fields.get('company_name'):
-            errors.append("Company name not found")
+        # Warn if no EIN found (required for STEM OPT)
+        if not doc.extracted_fields.get("ein"):
+            doc.warnings.append("EIN not found - required for STEM OPT / I-983")
         
-        if not fields.get('job_title'):
-            errors.append("Job title not found")
-        
-        if not fields.get('start_date'):
-            errors.append("Start date not found")
-        
-        if not fields.get('ein'):
-            errors.append("EIN not found (required for STEM OPT)")
-        
-        is_valid = len(errors) == 0
-        return is_valid, errors
+        return doc
