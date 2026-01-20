@@ -116,33 +116,66 @@ class IngestionService:
             json.dump(doc.model_dump(), f, indent=2)
         
     
-    def parse_with_llamaparse(self, file_path: Path) -> str:
+    def parse_with_llamaparse(self, file_path: Path, timeout_seconds: int = 30) -> str:
         """
-        Parse a PDF using LlamaParse.
+        Parse a PDF using LlamaParse with timeout and pypdf fallback.
         
         Returns the extracted content in markdown format (preserves tables).
+        Falls back to pypdf if LlamaParse times out or fails.
         """
         if not LLAMA_CLOUD_API_KEY:
-            raise ValueError(
-                "LLAMA_CLOUD_API_KEY not set. "
-                "Please configure it in your .env file."
-            )
+            print("⚠️  LLAMA_CLOUD_API_KEY not set, using pypdf fallback...")
+            return self._parse_with_pypdf(file_path)
         
-        # Import here to avoid loading if not needed
-        from llama_parse import LlamaParse
-        
-        parser = LlamaParse(
-            api_key=LLAMA_CLOUD_API_KEY,
-            result_type="markdown",  # Preserve table structure for forms
-            verbose=False,
-        )
-        
-        # Parse the document
-        documents = parser.load_data(str(file_path))
-        
-        # Combine all pages
-        full_text = "\n\n".join([doc.text for doc in documents])
-        return full_text
+        # Try LlamaParse with timeout
+        try:
+            from llama_parse import LlamaParse
+            import signal
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError("LlamaParse timed out")
+            
+            # Set timeout alarm (Unix only)
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout_seconds)
+            
+            try:
+                parser = LlamaParse(
+                    api_key=LLAMA_CLOUD_API_KEY,
+                    result_type="markdown",  # Preserve table structure for forms
+                    verbose=False,
+                )
+                
+                # Parse the document
+                documents = parser.load_data(str(file_path))
+                
+                # Combine all pages
+                full_text = "\n\n".join([doc.text for doc in documents])
+                
+                # Cancel timeout
+                signal.alarm(0)
+                return full_text
+                
+            except TimeoutError:
+                signal.alarm(0)
+                print(f"⚠️  LlamaParse timed out after {timeout_seconds}s, falling back to pypdf...")
+                return self._parse_with_pypdf(file_path)
+                
+        except Exception as e:
+            print(f"⚠️  LlamaParse failed ({e}), falling back to pypdf...")
+            return self._parse_with_pypdf(file_path)
+    
+    def _parse_with_pypdf(self, file_path: Path) -> str:
+        """Fallback parser using pypdf (no network required)."""
+        try:
+            import pypdf
+            
+            with open(file_path, 'rb') as f:
+                reader = pypdf.PdfReader(f)
+                text = '\n\n'.join(page.extract_text() for page in reader.pages)
+                return text
+        except Exception as e:
+            raise ValueError(f"Both LlamaParse and pypdf failed: {e}")
 
     def ingest_pdf(
         self,
