@@ -147,32 +147,33 @@ class IngestionService:
     def ingest_pdf(
         self,
         file_path: Path,
+        doc_type: Optional[str] = None,
         field_extractor: Optional[FieldExtractor] = None,
     ) -> ParsedDocument:
         """
-        Ingest a PDF document with caching and privacy scrubbing.
+        Ingest a PDF document with caching and document-type-aware parsing.
         
-        CRITICAL ARCHITECTURE NOTE:
-        If you need to fill forms later (with real PII values), you MUST provide
-        a field_extractor callback. This extracts structured data BEFORE scrubbing.
-        The extracted_fields (with real values) should be stored in an encrypted
-        database column, NOT in the cache file.
+        ARCHITECTURE:
+        - If doc_type is provided, uses specialized parser for that type
+        - Specialized parsers handle form-aware PII redaction (fixes false positives)
+        - Field extraction uses parser-specific patterns for accuracy
         
         Process:
         1. Compute SHA-256 hash
         2. Check cache for existing parse (returns scrubbed_text only)
         3. If not cached, parse with LlamaParse
-        4. **Extract structured fields BEFORE scrubbing** (if extractor provided)
-        5. Apply privacy scrubbing
-        6. Cache the scrubbed result (extracted_fields NOT cached - store separately)
+        4. Apply document-type-specific parsing (pre_redact + extract_fields)
+        5. Apply generic privacy scrubbing (Presidio)
+        6. Cache the scrubbed result
         
         Args:
             file_path: Path to the PDF file.
-            field_extractor: Optional callback to extract structured fields from raw text.
-                           This runs BEFORE scrubbing so it sees real values.
+            doc_type: Document type string (e.g., "i20", "offer_letter").
+                     If None, uses generic parsing.
+            field_extractor: Optional legacy callback (deprecated, use doc_type instead).
             
         Returns:
-            ParsedDocument with scrubbed_text and extracted_fields (in memory).
+            ParsedDocument with scrubbed_text and extracted_fields.
         """
         file_path = Path(file_path)
         if not file_path.exists():
@@ -184,38 +185,54 @@ class IngestionService:
         # Step 2: Check cache
         cached = self.load_from_cache(content_hash)
         if cached:
-            # NOTE: cached version only has scrubbed_text, not extracted_fields
-            # If caller needs extracted_fields, they must re-parse or load from DB
             return cached
         
         # Step 3: Parse document (raw text with PII)
         raw_text = self.parse_with_llamaparse(file_path)
         
-        # Step 4: EXTRACT FIELDS BEFORE SCRUBBING (critical for form filling)
+        # Step 4: Document-type-aware parsing
         extracted_fields = {}
-        if field_extractor:
-            extracted_fields = field_extractor(raw_text)
-            # NOTE: Caller is responsible for storing extracted_fields securely
-            # (e.g., encrypted column in Postgres)
+        scrubbed_text = raw_text
         
-        # Step 5: Apply privacy scrubbing
-        scrubbed_text = self.privacy_pipeline.scrub(raw_text)
+        if doc_type:
+            # Use specialized parser
+            from app.parsers import DocumentType, get_parser
+            
+            try:
+                doc_type_enum = DocumentType(doc_type.lower())
+                parser = get_parser(doc_type_enum)
+                
+                # Parser handles: pre_redact -> extract_fields -> generic scrub
+                parsed_result = parser.parse(raw_text, apply_generic_scrub=True)
+                
+                extracted_fields = parsed_result.extracted_fields
+                scrubbed_text = parsed_result.scrubbed_text
+                
+            except ValueError:
+                # Unknown doc_type, fall back to generic
+                scrubbed_text = self.privacy_pipeline.scrub(raw_text)
+        else:
+            # Legacy path: use generic scrubbing only
+            if field_extractor:
+                extracted_fields = field_extractor(raw_text)
+            scrubbed_text = self.privacy_pipeline.scrub(raw_text)
         
-        # Step 6: Create document record
+        # Step 5: Create document record
         doc = ParsedDocument(
             document_id=content_hash[:16],
             original_filename=file_path.name,
             content_hash=content_hash,
-            raw_text=raw_text,  # In-memory only, not persisted
+            raw_text=raw_text,  # In-memory only
             scrubbed_text=scrubbed_text,
-            extracted_fields=extracted_fields,  # In-memory only, not persisted
+            extracted_fields=extracted_fields,  # In-memory only
             metadata={
                 "file_size_bytes": file_path.stat().st_size,
                 "parse_method": "llamaparse",
+                "doc_type": doc_type or "unknown",
             }
         )
         
-        # Step 7: Cache (only scrubbed_text and metadata - NO PII)
+        # Step 6: Cache (only scrubbed_text and metadata - NO PII)
         self.save_to_cache(doc)
         
         return doc
@@ -252,29 +269,50 @@ def get_ingestion_service() -> IngestionService:
 
 
 if __name__ == "__main__":
-
-    # Test the ingestion service with a sample offer letter
     from app.core.config import DATA_DIR
+    
+    # Clear cache for testing
+    import shutil
+    cache_dir = DATA_DIR / ".cache" / "parsed"
+    if cache_dir.exists():
+        shutil.rmtree(cache_dir)
+        print("🗑️  Cleared cache for fresh test")
     
     ingestion_service = get_ingestion_service()
     
-    # Use absolute path
-    test_file = DATA_DIR / "templates" / "i20.pdf"
+    # Test 1: I-20 with doc_type
+    print("\n" + "=" * 60)
+    print("Test 1: I-20 with doc_type='i20'")
+    print("=" * 60)
     
-    if not test_file.exists():
-        print(f"❌ Test file not found: {test_file}")
-        print(f"   Create a sample offer letter PDF at this location to test.")
-    else:
-        print(f"📄 Testing ingestion on: {test_file.name}")
-        doc = ingestion_service.ingest_pdf(test_file)
+    i20_file = DATA_DIR / "templates" / "i20.pdf"
+    if i20_file.exists():
+        doc = ingestion_service.ingest_pdf(i20_file, doc_type="i20")
         
-        print(f"\n✅ Successfully ingested!")
-        print(f"   Document ID: {doc.document_id}")
-        print(f"   Content Hash: {doc.content_hash}")
-        print(f"   Scrubbed Text Length: {len(doc.scrubbed_text)} chars")
-        print(f"\n   First 200 chars of scrubbed text:")
-        print(f"   {doc.scrubbed_text}")
-        with open(DATA_DIR / "templates" / "i20_scrubbed.txt", "w") as f:
-            f.write(doc.scrubbed_text)
+        print(f"✅ Document ID: {doc.document_id}")
+        print(f"📋 Extracted Fields: {doc.extracted_fields}")
+        print(f"\n🔍 Checking NAME redaction:")
+        for line in doc.scrubbed_text.split("\n"):
+            if "NAME:" in line.upper() and "NAME**" not in line:
+                print(f"   {line[:80]}")
+    else:
+        print(f"❌ I-20 file not found: {i20_file}")
+    
+    # Test 2: Offer Letter with doc_type
+    print("\n" + "=" * 60)
+    print("Test 2: Offer Letter with doc_type='offer_letter'")
+    print("=" * 60)
+    
+    offer_file = DATA_DIR / "templates" / "OPT_offer_letter_sample.pdf"
+    if offer_file.exists():
+        doc = ingestion_service.ingest_pdf(offer_file, doc_type="offer_letter")
+        
+        print(f"✅ Document ID: {doc.document_id}")
+        print(f"📋 Extracted Fields: {doc.extracted_fields}")
+        print(f"\n🔍 Sample scrubbed text:")
+        print(doc.scrubbed_text[:500])
+    else:
+        print(f"❌ Offer letter not found: {offer_file}")
+
 
 
