@@ -259,7 +259,7 @@ if __name__ == "__main__":
     ingestion_service = get_ingestion_service()
     
     # Use absolute path
-    test_file = DATA_DIR / "templates" / "OPT_offer_letter_sample.pdf"
+    test_file = DATA_DIR / "templates" / "i20.pdf"
     
     if not test_file.exists():
         print(f"❌ Test file not found: {test_file}")
@@ -274,5 +274,7 @@ if __name__ == "__main__":
         print(f"   Scrubbed Text Length: {len(doc.scrubbed_text)} chars")
         print(f"\n   First 200 chars of scrubbed text:")
         print(f"   {doc.scrubbed_text}")
+        with open(DATA_DIR / "templates" / "i20_scrubbed.txt", "w") as f:
+            f.write(doc.scrubbed_text)
 
 
