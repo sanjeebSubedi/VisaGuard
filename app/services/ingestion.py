@@ -269,50 +269,43 @@ def get_ingestion_service() -> IngestionService:
 
 
 if __name__ == "__main__":
+    """
+    Simple test: Ingest a document and print results.
+    
+    Change FILE_PATH and DOC_TYPE to test different documents:
+    - I-20:         doc_type="i20"
+    - Offer Letter: doc_type="offer_letter"
+    """
     from app.core.config import DATA_DIR
     
-    # Clear cache for testing
-    import shutil
-    cache_dir = DATA_DIR / ".cache" / "parsed"
-    if cache_dir.exists():
-        shutil.rmtree(cache_dir)
-        print("🗑️  Cleared cache for fresh test")
+    # ===== CHANGE THESE TO TEST DIFFERENT DOCUMENTS =====
+    FILE_PATH = DATA_DIR / "templates" / "i20.pdf"
+    DOC_TYPE = "i20"
+    # FILE_PATH = DATA_DIR / "templates" / "OPT_offer_letter_sample.pdf"
+    # DOC_TYPE = "offer_letter"
+    # ====================================================
     
-    ingestion_service = get_ingestion_service()
+    print(f"\n{'='*60}")
+    print(f"Testing: {FILE_PATH.name} (type: {DOC_TYPE})")
+    print(f"{'='*60}\n")
     
-    # Test 1: I-20 with doc_type
-    print("\n" + "=" * 60)
-    print("Test 1: I-20 with doc_type='i20'")
-    print("=" * 60)
+    if not FILE_PATH.exists():
+        print(f"❌ File not found: {FILE_PATH}")
+        exit(1)
     
-    i20_file = DATA_DIR / "templates" / "i20.pdf"
-    if i20_file.exists():
-        doc = ingestion_service.ingest_pdf(i20_file, doc_type="i20")
-        
-        print(f"✅ Document ID: {doc.document_id}")
-        print(f"📋 Extracted Fields: {doc.extracted_fields}")
-        print(f"\n🔍 Checking NAME redaction:")
-        for line in doc.scrubbed_text.split("\n"):
-            if "NAME:" in line.upper() and "NAME**" not in line:
-                print(f"   {line[:80]}")
+    service = get_ingestion_service()
+    doc = service.ingest_pdf(FILE_PATH, doc_type=DOC_TYPE)
+    
+    # 1. Extracted Fields
+    print("📋 EXTRACTED FIELDS:")
+    print("-" * 40)
+    if doc.extracted_fields:
+        for key, value in doc.extracted_fields.items():
+            print(f"  {key}: {value}")
     else:
-        print(f"❌ I-20 file not found: {i20_file}")
+        print("  (none)")
     
-    # Test 2: Offer Letter with doc_type
-    print("\n" + "=" * 60)
-    print("Test 2: Offer Letter with doc_type='offer_letter'")
-    print("=" * 60)
-    
-    offer_file = DATA_DIR / "templates" / "OPT_offer_letter_sample.pdf"
-    if offer_file.exists():
-        doc = ingestion_service.ingest_pdf(offer_file, doc_type="offer_letter")
-        
-        print(f"✅ Document ID: {doc.document_id}")
-        print(f"📋 Extracted Fields: {doc.extracted_fields}")
-        print(f"\n🔍 Sample scrubbed text:")
-        print(doc.scrubbed_text[:500])
-    else:
-        print(f"❌ Offer letter not found: {offer_file}")
-
-
-
+    # 2. Scrubbed Text
+    print(f"\n📄 SCRUBBED TEXT ({len(doc.scrubbed_text)} chars):")
+    print("-" * 40)
+    print(doc.scrubbed_text)
