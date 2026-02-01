@@ -28,6 +28,57 @@ def get_llm() -> ChatOllama:
     )
 
 
+def _manual_normalize(data: dict) -> dict:
+    """Fallback manual normalization for dates and fields."""
+    import re
+    from datetime import datetime
+
+    result = data.copy()
+
+    # Date patterns to try
+    date_patterns = [
+        (r"(\w+)\s+(\d{1,2}),?\s+(\d{4})", "%B %d %Y"),  # January 31, 2027
+        (r"(\d{1,2})\s+(\w+)\s+(\d{4})", "%d %B %Y"),  # 31 January 2027
+        (r"(\d{4})-(\d{2})-(\d{2})", None),  # Already YYYY-MM-DD
+    ]
+
+    def normalize_date(value):
+        if not value or not isinstance(value, str):
+            return value
+
+        # Already in correct format
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+            return value
+
+        # Try to parse and reformat
+        for pattern, fmt in date_patterns:
+            if fmt and re.search(pattern, value):
+                try:
+                    # Clean the value
+                    clean_val = re.sub(r",", "", value).strip()
+                    dt = datetime.strptime(clean_val, fmt)
+                    return dt.strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
+
+        return value  # Return original if can't parse
+
+    # Normalize date fields
+    date_fields = [
+        "start_date",
+        "end_date",
+        "program_start",
+        "program_end",
+        "card_start_date",
+        "card_end_date",
+    ]
+    for field in date_fields:
+        if field in result:
+            result[field] = normalize_date(result[field])
+
+    return result
+
+
 # =============================================================================
 # I-20 PROCESSOR (Fields Only)
 # =============================================================================
@@ -196,48 +247,51 @@ def process_offer_letter(file_path: str) -> OfferLetterFields:
     Process an offer letter using 3 focused LLM calls + recovery pass.
     """
     import re
-    from pydantic import BaseModel, Field
     from typing import Optional
+
+    from pydantic import BaseModel, Field
+
     from app.services.schemas import (
         OfferEmploymentDetails,
-        OfferSupervisorInfo, 
-        OfferJobAndLocation
+        OfferJobAndLocation,
+        OfferSupervisorInfo,
     )
-    
+
     text = ingest_document(file_path)
     llm = get_llm()
-    
+
     # Call 1: Employment Details
     emp_llm = llm.with_structured_output(OfferEmploymentDetails)
     emp_result = emp_llm.invoke(EMPLOYMENT_DETAILS_PROMPT.format(text=text))
-    
+
     # Call 2: Supervisor Info
     sup_llm = llm.with_structured_output(OfferSupervisorInfo)
     sup_result = sup_llm.invoke(SUPERVISOR_PROMPT.format(text=text))
-    
+
     # Call 3: Job Duties + Work Location
     job_loc_llm = llm.with_structured_output(OfferJobAndLocation)
     job_loc_result = job_loc_llm.invoke(JOB_AND_LOCATION_PROMPT.format(text=text))
-    
+
     # Regex fallback for EIN if LLM missed it
     ein = emp_result.ein
     if not ein:
-        ein_match = re.search(r'\b(\d{2}-\d{7})\b', text)
+        ein_match = re.search(r"\b(\d{2}-\d{7})\b", text)
         if ein_match:
             ein = ein_match.group(1)
-    
-    
+
     # Collect missing fields
     missing_fields = []
     if not ein:
-        missing_fields.append("ein (Employer Identification Number, format: XX-XXXXXXX)")
+        missing_fields.append(
+            "ein (Employer Identification Number, format: XX-XXXXXXX)"
+        )
     if not emp_result.end_date:
         missing_fields.append("end_date (Employment end date)")
     if not sup_result.supervisor_name:
         missing_fields.append("supervisor_name")
     if not sup_result.supervisor_email:
         missing_fields.append("supervisor_email")
-    
+
     # If there are missing fields, do a recovery pass
     recovered = {}
     if missing_fields:
@@ -245,14 +299,18 @@ def process_offer_letter(file_path: str) -> OfferLetterFields:
         class MissingFieldsRecovery(BaseModel):
             ein: Optional[str] = Field(None, description="EIN (XX-XXXXXXX format)")
             end_date: Optional[str] = Field(None, description="Employment end date")
-            supervisor_name: Optional[str] = Field(None, description="Supervisor's name")
-            supervisor_email: Optional[str] = Field(None, description="Supervisor's email")
-        
+            supervisor_name: Optional[str] = Field(
+                None, description="Supervisor's name"
+            )
+            supervisor_email: Optional[str] = Field(
+                None, description="Supervisor's email"
+            )
+
         recovery_prompt = f"""The following fields were NOT found in the first extraction pass.
 Search the document VERY CAREFULLY to find them:
 
 Missing fields:
-{chr(10).join('- ' + f for f in missing_fields)}
+{chr(10).join("- " + f for f in missing_fields)}
 
 Search hints:
 - EIN: Look for "Employer Identification Number", "EIN:", or "Tax ID:" followed by XX-XXXXXXX format
@@ -264,38 +322,44 @@ Document:
 """
         recovery_llm = llm.with_structured_output(MissingFieldsRecovery)
         recovery_result = recovery_llm.invoke(recovery_prompt)
-        
+
         # Apply recovered values
         if recovery_result.ein and not ein:
             ein = recovery_result.ein
         if recovery_result.end_date and not emp_result.end_date:
-            recovered['end_date'] = recovery_result.end_date
+            recovered["end_date"] = recovery_result.end_date
         if recovery_result.supervisor_name and not sup_result.supervisor_name:
-            recovered['supervisor_name'] = recovery_result.supervisor_name
+            recovered["supervisor_name"] = recovery_result.supervisor_name
         if recovery_result.supervisor_email and not sup_result.supervisor_email:
-            recovered['supervisor_email'] = recovery_result.supervisor_email
-    
-    # Combine results into final OfferLetterFields
-    return OfferLetterFields(
-        company_name=emp_result.company_name,
-        ein=ein,
-        position_title=emp_result.position_title,
-        job_duties_text=job_loc_result.job_duties_text,
-        start_date=emp_result.start_date,
-        end_date=recovered.get('end_date', emp_result.end_date),
-        hours_per_week=emp_result.hours_per_week,
-        salary_amount=emp_result.salary_amount,
-        salary_frequency=emp_result.salary_frequency,
-        supervisor_name=recovered.get('supervisor_name', sup_result.supervisor_name),
-        supervisor_title=sup_result.supervisor_title,
-        supervisor_email=recovered.get('supervisor_email', sup_result.supervisor_email),
-        supervisor_phone=sup_result.supervisor_phone,
-        work_address_street=job_loc_result.work_street,
-        work_address_city=job_loc_result.work_city,
-        work_address_state=job_loc_result.work_state,
-        work_address_zip=job_loc_result.work_zip,
-    )
+            recovered["supervisor_email"] = recovery_result.supervisor_email
 
+    # Combine results into preliminary dict
+    raw_data = {
+        "company_name": emp_result.company_name,
+        "ein": ein,
+        "position_title": emp_result.position_title,
+        "job_duties_text": job_loc_result.job_duties_text,
+        "start_date": emp_result.start_date,
+        "end_date": recovered.get("end_date", emp_result.end_date),
+        "hours_per_week": emp_result.hours_per_week,
+        "salary_amount": emp_result.salary_amount,
+        "salary_frequency": emp_result.salary_frequency,
+        "supervisor_name": recovered.get("supervisor_name", sup_result.supervisor_name),
+        "supervisor_title": sup_result.supervisor_title,
+        "supervisor_email": recovered.get(
+            "supervisor_email", sup_result.supervisor_email
+        ),
+        "supervisor_phone": sup_result.supervisor_phone,
+        "work_address_street": job_loc_result.work_street,
+        "work_address_city": job_loc_result.work_city,
+        "work_address_state": job_loc_result.work_state,
+        "work_address_zip": job_loc_result.work_zip,
+    }
+
+    # Normalize dates and clean fields
+    normalized = _manual_normalize(raw_data)
+
+    return OfferLetterFields(**normalized)
 
 
 if __name__ == "__main__":
