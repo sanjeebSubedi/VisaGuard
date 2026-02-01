@@ -28,6 +28,93 @@ def get_llm() -> ChatOllama:
     )
 
 
+# Unified document processor with caching and suto save
+def process_document(file_path: str, doc_type: str) -> dict:
+    """
+    Process a document with cache checking and auto-save.
+
+    Args:
+        file_path: Path to the document file
+        doc_type: One of "i20", "offer_letter", "ead"
+
+    Returns:
+        dict with extracted fields and metadata:
+        {
+            "cached": bool,  # True if returned from cache
+            "id": int,       # Database record ID
+            "fields": {...}  # Extracted field values
+        }
+    """
+    from app.db.database import (
+        compute_file_hash,
+        get_cached_ead,
+        get_cached_i20,
+        get_cached_offer_letter,
+        get_session,
+        init_db,
+        save_ead,
+        save_i20,
+        save_offer_letter,
+    )
+
+    # Ensure database exists
+    init_db()
+
+    # Compute file hash
+    file_hash = compute_file_hash(file_path)
+
+    # Check cache
+    cache_funcs = {
+        "i20": get_cached_i20,
+        "offer_letter": get_cached_offer_letter,
+        "ead": get_cached_ead,
+    }
+
+    with get_session() as session:
+        get_cached = cache_funcs.get(doc_type)
+        if get_cached:
+            cached_doc = get_cached(session, file_hash)
+            if cached_doc:
+                return {
+                    "cached": True,
+                    "id": cached_doc.id,
+                    "fields": cached_doc.model_dump(
+                        exclude={"id", "file_path", "file_hash", "created_at"}
+                    ),
+                }
+
+    # Not cached - process the document
+    process_funcs = {
+        "i20": process_i20,
+        "offer_letter": process_offer_letter,
+        "ead": process_ead,
+    }
+
+    processor = process_funcs.get(doc_type)
+    if not processor:
+        raise ValueError(f"Unknown document type: {doc_type}")
+
+    result = processor(file_path)
+    fields = result.model_dump()
+
+    # Save to database
+    save_funcs = {
+        "i20": save_i20,
+        "offer_letter": save_offer_letter,
+        "ead": save_ead,
+    }
+
+    with get_session() as session:
+        save_func = save_funcs[doc_type]
+        doc_id = save_func(session, file_path, file_hash, fields)
+
+    return {
+        "cached": False,
+        "id": doc_id,
+        "fields": fields,
+    }
+
+
 def _manual_normalize(data: dict) -> dict:
     """Fallback manual normalization for dates and fields."""
     import re
@@ -79,42 +166,9 @@ def _manual_normalize(data: dict) -> dict:
     return result
 
 
-# =============================================================================
 # I-20 PROCESSOR (Fields Only)
-# =============================================================================
 
-I20_EXTRACTION_PROMPT = """You are an expert document parser for US Immigration Forms (I-20).
-Your goal is to extract structured data accurately, even if the text layout is jumbled.
-
-### The Problem: Grid Layouts
-The text comes from a PDF where columns often merge.
-* *Bad Parse:* "DATE OF BIRTH ADMISSION NUMBER 05 FEB 1999 123456789"
-* *Your Job:* Disentangle which value belongs to which label.
-
-### Instructions:
-1.  **Analyze First:** Before outputting JSON, use `<analysis>` tags to locate each field.
-2.  **Find Anchors:**
-    * **Date of Birth:** Look for the pattern `DD MONTH YYYY` (e.g., 07 NOVEMBER 2001). It is usually *near* the label "DATE OF BIRTH" but might be separated by other text.
-    * **Country of Birth:** Look for a country name *near* "COUNTRY OF BIRTH". Distinguish it from "COUNTRY OF CITIZENSHIP".
-    * **SEVIS ID:** Look for `N` followed by 10 digits at the top of the text.
-3.  **Output JSON:** After your analysis, output the valid JSON object.
-
-### Example Thinking Process:
-Input: "SURNAME/PRIMARY NAME SMITH GIVEN NAME JOHN DATE OF BIRTH 01 JANUARY 2000"
-<analysis>
-- Searching for Surname... Found "SMITH" after "SURNAME/PRIMARY NAME".
-- Searching for Date of Birth... Found "01 JANUARY 2000" (matches Date pattern).
-- Assigning values to fields.
-</analysis>
-{{
-  "surname": "SMITH",
-  "date_of_birth": "01 JANUARY 2000",
-  ...
-}}
-
-### Document Text:
-{text}
-"""
+from app.services.prompts import I20_EXTRACTION_PROMPT
 
 
 def process_i20(file_path: str) -> I20Fields:
@@ -142,32 +196,9 @@ def process_i20(file_path: str) -> I20Fields:
     return result
 
 
-# =============================================================================
 # EAD PROCESSOR (Fields Only)
-# =============================================================================
 
-EAD_EXTRACTION_PROMPT = """You are a specialized data extraction engine for US Immigration Documents.
-Your task is to extract structured data from an **Employment Authorization Document (EAD)** (Form I-766).
-
-### Critical Layout Hints:
-1. **Dates are Critical:** Look for **two** distinct dates on the front of the card:
-   - "Valid From" (Start Date) -> extract as `card_start_date`
-   - "Card Expires" (End Date) -> extract as `card_end_date`
-   - Format: Convert all dates to **YYYY-MM-DD**.
-2. **Category Code:** Look for the code under the "Category" label.
-   - For OPT students, this is usually **C03A** (Pre-completion), **C03B** (Post-completion), or **C03C** (STEM Extension).
-3. **USCIS #:** This is the same as the A-Number. It is usually labeled "USCIS#" and formatted like `XXX-XXX-XXX`.
-   - Remove the hyphens.
-   - If it starts with "A", include the "A".
-
-### Extraction Rules:
-- Return ONLY the values.
-- If a field is not found, return null.
-- Do not extract the "Card #" (WAC/IOE...) unless explicitly asked, do not confuse it with the USCIS#.
-
-### Input Document:
-{text}
-"""
+from app.services.prompts import EAD_EXTRACTION_PROMPT
 
 
 def process_ead(file_path: str) -> EADFields:
@@ -190,56 +221,14 @@ def process_ead(file_path: str) -> EADFields:
     return result
 
 
-# =============================================================================
 # OFFER LETTER PROCESSOR (Multi-Call Focused Extraction)
-# =============================================================================
 
-# Focused prompts for each extraction call
-
-EMPLOYMENT_DETAILS_PROMPT = """Extract employment details from this offer letter.
-
-Look for:
-- Company name (the employer)
-- EIN: Format XX-XXXXXXX (return null if not found)
-- Position/Job title
-- Start Date (Employment start). Ignore "Offer Expiration Date".
-- End Date (Employment end). Return null if "At-Will" or indefinite.
-- Hours per week (numeric). If "Full-Time" and no number listed, return 40.
-- Salary amount and frequency (e.g., "$XX per hour" → amount=XX, frequency="Hour")
-
-Document:
-{text}
-"""
-
-SUPERVISOR_PROMPT = """Extract the SUPERVISOR information.
-
-Priority Order:
-1. Look for a specific "Supervision" or "Reports to" section. (Primary Source)
-2. IF AND ONLY IF that is missing, extract the person who signed the letter (Signatory) as the supervisor.
-
-Extract:
-- Name
-- Job Title
-- Email
-- Phone
-
-Document:
-{text}
-"""
-
-JOB_AND_LOCATION_PROMPT = """Extract job duties and work location from this offer letter.
-
-**Job Duties:**
-Look for "Job Description", "Responsibilities", or "Duties" section.
-Copy the ENTIRE text including all bullet points. Do not summarize.
-
-**Work Location:**
-Look for "Work Location:" or the company address.
-Split into: street, city, state, zip
-
-Document:
-{text}
-"""
+from app.services.prompts import (
+    EMPLOYMENT_DETAILS_PROMPT,
+    JOB_AND_LOCATION_PROMPT,
+    MISSING_FIELDS_RECOVERY_PROMPT,
+    SUPERVISOR_PROMPT,
+)
 
 
 def process_offer_letter(file_path: str) -> OfferLetterFields:
@@ -306,20 +295,10 @@ def process_offer_letter(file_path: str) -> OfferLetterFields:
                 None, description="Supervisor's email"
             )
 
-        recovery_prompt = f"""The following fields were NOT found in the first extraction pass.
-Search the document VERY CAREFULLY to find them:
-
-Missing fields:
-{chr(10).join("- " + f for f in missing_fields)}
-
-Search hints:
-- EIN: Look for "Employer Identification Number", "EIN:", or "Tax ID:" followed by XX-XXXXXXX format
-- end_date: Look for "End Date:", "Employment ends", or date after "through"
-- supervisor: Look in "Supervision" section, "Reports to", or letter signatory
-
-Document:
-{text}
-"""
+        missing_fields_str = chr(10).join("- " + f for f in missing_fields)
+        recovery_prompt = MISSING_FIELDS_RECOVERY_PROMPT.format(
+            missing_fields=missing_fields_str, text=text
+        )
         recovery_llm = llm.with_structured_output(MissingFieldsRecovery)
         recovery_result = recovery_llm.invoke(recovery_prompt)
 
@@ -365,29 +344,43 @@ Document:
 if __name__ == "__main__":
     import sys
 
-    # Default test configuration
-    TESTS = {
-        "i20": ("data/templates/i20.pdf", process_i20),
-        "ead": ("data/templates/ead.jpg", process_ead),
-        "offer": ("data/templates/OPT_offer_letter_sample.pdf", process_offer_letter),
+    # Map short names to doc_type
+    DOC_TYPE_MAP = {
+        "i20": "i20",
+        "ead": "ead",
+        "offer": "offer_letter",
     }
 
-    # Get document type from command line or default to i20
-    doc_type = sys.argv[1] if len(sys.argv) > 1 else "offer"
+    FILES = {
+        "i20": "data/templates/i20.pdf",
+        "ead": "data/templates/ead.jpg",
+        "offer": "data/templates/OPT_offer_letter_sample.pdf",
+    }
 
-    if doc_type not in TESTS:
-        print(f"Unknown document type: {doc_type}")
-        print(f"Available: {', '.join(TESTS.keys())}")
+    # Get document type from command line or default to offer
+    arg = sys.argv[1] if len(sys.argv) > 1 else "i20"
+
+    if arg not in DOC_TYPE_MAP:
+        print(f"Unknown document type: {arg}")
+        print(f"Available: {', '.join(DOC_TYPE_MAP.keys())}")
         sys.exit(1)
 
-    file_path, processor = TESTS[doc_type]
+    doc_type = DOC_TYPE_MAP[arg]
+    file_path = FILES[arg]
 
-    print(f"Processing {doc_type.upper()}: {file_path}")
+    print(f"Processing {arg.upper()}: {file_path}")
     print("=" * 50)
 
-    result = processor(file_path)
+    # Use unified processor with caching
+    result = process_document(file_path, doc_type)
 
+    if result["cached"]:
+        print("\n⚡ CACHED RESULT (duplicate file detected)")
+    else:
+        print("\n✨ NEW DOCUMENT PROCESSED")
+
+    print(f"📁 Database ID: {result['id']}")
     print("\n📋 EXTRACTED FIELDS:")
     print("-" * 40)
-    for field, value in result.model_dump().items():
+    for field, value in result["fields"].items():
         print(f"  {field}: {value}")
