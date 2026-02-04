@@ -13,6 +13,14 @@ Design:
 from langchain_ollama import ChatOllama
 
 from app.services.ingest_docling import ingest_document
+from app.services.prompts import (
+    EAD_EXTRACTION_PROMPT,
+    EMPLOYMENT_DETAILS_PROMPT,
+    I20_EXTRACTION_PROMPT,
+    JOB_AND_LOCATION_PROMPT,
+    MISSING_FIELDS_RECOVERY_PROMPT,
+    SUPERVISOR_PROMPT,
+)
 from app.services.schemas import EADFields, I20Fields, OfferLetterFields
 
 # LLM configuration
@@ -168,8 +176,6 @@ def _manual_normalize(data: dict) -> dict:
 
 # I-20 PROCESSOR (Fields Only)
 
-from app.services.prompts import I20_EXTRACTION_PROMPT
-
 
 def process_i20(file_path: str) -> I20Fields:
     """
@@ -198,8 +204,6 @@ def process_i20(file_path: str) -> I20Fields:
 
 # EAD PROCESSOR (Fields Only)
 
-from app.services.prompts import EAD_EXTRACTION_PROMPT
-
 
 def process_ead(file_path: str) -> EADFields:
     """
@@ -222,13 +226,6 @@ def process_ead(file_path: str) -> EADFields:
 
 
 # OFFER LETTER PROCESSOR (Multi-Call Focused Extraction)
-
-from app.services.prompts import (
-    EMPLOYMENT_DETAILS_PROMPT,
-    JOB_AND_LOCATION_PROMPT,
-    MISSING_FIELDS_RECOVERY_PROMPT,
-    SUPERVISOR_PROMPT,
-)
 
 
 def process_offer_letter(file_path: str) -> OfferLetterFields:
