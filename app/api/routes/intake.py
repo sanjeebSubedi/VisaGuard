@@ -1,13 +1,15 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
-from app.api.schemas.intake import DocumentResponse
-from app.db.models import Document
+from app.api.schemas.intake import DocumentResponse, ReviewItemResponse, SnapshotResponse
+from app.core.config import Settings
+from app.db.models import Document, ReviewItem, StudentStateSnapshot
 from app.db.session import get_db_session
 from app.services.fingerprints import sha256_bytes
+from app.services.pipeline import DocumentPipeline
 from app.services.storage import ArtifactStorage
-from app.core.config import Settings
 
 router = APIRouter(prefix="/api/intake", tags=["intake"])
 ALLOWED_DOCUMENT_TYPES = {"i20", "ead", "offer_letter"}
@@ -41,4 +43,23 @@ def upload_document(
     session.add(document)
     session.commit()
     session.refresh(document)
-    return document
+
+    pipeline = DocumentPipeline(session=session, storage=storage)
+    return pipeline.process_uploaded_document(document)
+
+
+@router.get("/users/{user_id}/snapshot", response_model=SnapshotResponse)
+def get_snapshot(user_id: str, session: Session = Depends(get_db_session)) -> StudentStateSnapshot:
+    snapshot = session.scalar(
+        select(StudentStateSnapshot)
+        .where(StudentStateSnapshot.user_id == user_id)
+        .order_by(StudentStateSnapshot.version.desc())
+    )
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+    return snapshot
+
+
+@router.get("/users/{user_id}/review-items", response_model=list[ReviewItemResponse])
+def get_review_items(user_id: str, session: Session = Depends(get_db_session)) -> list[ReviewItem]:
+    return session.scalars(select(ReviewItem).where(ReviewItem.user_id == user_id)).all()
