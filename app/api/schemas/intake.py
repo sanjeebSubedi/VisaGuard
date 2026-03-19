@@ -7,7 +7,6 @@ class DocumentResponse(BaseModel):
     id: int
     user_id: str
     document_type: str
-    encrypted_original_uri: str | None
     file_fingerprint: str | None
     parse_status: str
     redaction_status: str
