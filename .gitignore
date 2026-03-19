@@ -19,3 +19,4 @@ data/templates/
 data/.cache/
 notes
 uv.lock
+data/
