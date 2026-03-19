@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from app.services.crypto import EncryptionService
@@ -13,6 +14,10 @@ class ArtifactStorage:
         destination = self.root / relative_path
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(content)
+
+
+    def write_json(self, relative_path: Path, payload: dict) -> None:
+        self.write_bytes(relative_path, json.dumps(payload).encode("utf-8"))
 
     def store_original(self, user_id: str, filename: str, content: bytes) -> str:
         relative_path = Path("originals") / user_id / filename

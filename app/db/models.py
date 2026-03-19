@@ -19,6 +19,7 @@ class Document(Base):
     parse_status: Mapped[str] = mapped_column(String, default="pending", nullable=False)
     redaction_status: Mapped[str] = mapped_column(String, default="pending", nullable=False)
     extraction_status: Mapped[str] = mapped_column(String, default="pending", nullable=False)
+    parse_artifact_uri: Mapped[str | None] = mapped_column(String, nullable=True)
     parser_version: Mapped[str | None] = mapped_column(String, nullable=True)
     extractor_version: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
