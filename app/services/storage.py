@@ -27,6 +27,11 @@ class ArtifactStorage:
         self.write_text(relative_path, content)
         return str(relative_path)
 
+    def write_llm_response(self, document_id: int, payload: dict) -> str:
+        relative_path = Path("llm") / f"document-{document_id}.json"
+        self.write_json(relative_path, payload)
+        return str(relative_path)
+
     def store_original(self, user_id: str, filename: str, content: bytes) -> str:
         relative_path = Path("originals") / user_id / filename
         encrypted = self._crypto.encrypt(content)
