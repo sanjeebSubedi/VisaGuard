@@ -33,7 +33,10 @@ def isolated_storage_root(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def stub_pipeline_docling_parse(monkeypatch):
+def stub_pipeline_docling_parse(request, monkeypatch):
+    if not request.node.nodeid.startswith("tests/integration/"):
+        return
+
     def fake_parse_with_docling(*, file_bytes: bytes, filename: str, content_type: str) -> ParsedDocument:
         lowered = filename.lower()
         if content_type.startswith("image/"):
@@ -61,7 +64,10 @@ def stub_pipeline_docling_parse(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def stub_pipeline_llm_extract(monkeypatch):
+def stub_pipeline_llm_extract(request, monkeypatch):
+    if not request.node.nodeid.startswith("tests/integration/"):
+        return
+
     def fake_extract(self, *, document_type: str, parsed_text: str) -> LLMExtractionOutcome:
         if document_type == "i20":
             values = {
