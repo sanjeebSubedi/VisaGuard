@@ -71,6 +71,15 @@ uv run --with uvicorn uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 The app now initializes database tables on startup, so a clean local run does not need a separate bootstrap command.
 
+## Timeline manager
+
+The repo now includes a deterministic timeline manager under `app/services/timeline/`.
+
+- it reads extracted facts only in v1
+- it accepts an explicit `evaluation_date` for deterministic replay/testing
+- it computes structured `timeline_inputs` and `timeline_status`
+- it covers OPT/STEM unemployment, reporting windows, grace periods, and Cap-Gap when enough facts are present
+
 ## Upload examples
 
 ```bash
@@ -107,4 +116,5 @@ curl http://127.0.0.1:8000/api/intake/users/student-1/review-items
 uv run pytest tests/unit -v
 uv run pytest tests/integration -v
 uv run pytest tests/unit -v && uv run pytest tests/integration -v
+uv run pytest tests/unit/test_timeline_*.py tests/integration/test_timeline_manager.py -v
 ```
