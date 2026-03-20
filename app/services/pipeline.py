@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db.models import Document, DocumentFact, ReviewItem, StudentStateSnapshot
 from app.services.extractors.router import get_extractor
 from app.services.normalization import build_snapshot
-from app.services.parsing.docling_parser import DoclingParseError, parse_with_docling
+from app.services.parsing.docling_parser import parse_with_docling
 from app.services.policy import get_document_policy
 from app.services.redaction import redact_direct_identifiers
 from app.services.storage import ArtifactStorage
@@ -21,6 +19,9 @@ class DocumentPipeline:
 
     def process_uploaded_document(self, document: Document, *, filename: str, content_type: str) -> Document:
         policy = get_document_policy(document.document_type)
+        document.parse_artifact_uri = None
+        document.redacted_artifact_uri = None
+        document.retained_text_uri = None
         try:
             parsed = parse_with_docling(
                 file_bytes=self.storage.load_original(document.encrypted_original_uri or ""),
@@ -37,21 +38,18 @@ class DocumentPipeline:
             self.session.refresh(document)
             return document
 
-        parse_artifact_uri = Path("parsed") / f"document-{document.id}.json"
-        self.storage.write_json(parse_artifact_uri, parsed.raw_payload)
-
-        redacted = redact_direct_identifiers(parsed.text)
-        redacted_artifact_uri = Path("redacted") / f"document-{document.id}.txt"
-        self.storage.write_text(redacted_artifact_uri, redacted.text)
-
         document.parse_status = "completed"
-        document.redaction_status = "completed"
-        document.parse_artifact_uri = str(parse_artifact_uri)
-        document.redacted_artifact_uri = str(redacted_artifact_uri)
         document.parser_version = "docling-adapter-v1"
+        document.redaction_status = "skipped"
+
+        extraction_text = parsed.text
+        if policy.persist_retained_text:
+            redacted = redact_direct_identifiers(parsed.text)
+            document.retained_text_uri = self.storage.write_retained_text(document.id, redacted.text)
+            document.redaction_status = "completed"
 
         extractor = get_extractor(policy.document_type)
-        extracted_facts = extractor.extract(redacted.text)
+        extracted_facts = extractor.extract(extraction_text)
         document.extractor_version = "rule-based-v1"
         document.extraction_status = "completed"
 

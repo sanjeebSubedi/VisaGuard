@@ -22,6 +22,11 @@ class ArtifactStorage:
     def write_text(self, relative_path: Path, content: str) -> None:
         self.write_bytes(relative_path, content.encode("utf-8"))
 
+    def write_retained_text(self, document_id: int, content: str) -> str:
+        relative_path = Path("retained") / f"document-{document_id}.txt"
+        self.write_text(relative_path, content)
+        return str(relative_path)
+
     def store_original(self, user_id: str, filename: str, content: bytes) -> str:
         relative_path = Path("originals") / user_id / filename
         encrypted = self._crypto.encrypt(content)
