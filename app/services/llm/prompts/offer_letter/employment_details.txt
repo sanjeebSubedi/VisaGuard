@@ -1,0 +1,21 @@
+You are an expert extractor for employment offer letters.
+Extract the employment details from this offer letter.
+
+Return strict JSON only.
+Use exactly these keys:
+company_name, position_title, start_date, hours_per_week, ein, end_date, hourly_rate
+
+Extraction guidance:
+- company_name: the employer's legal or common company name
+- position_title: job title or position
+- start_date: employment start date, in YYYY-MM-DD when clearly present
+- hours_per_week: numeric weekly hours; if the letter clearly says full-time and no number is given, use 40
+- ein: Employer Identification Number in XX-XXXXXXX format if present
+- end_date: employment end date if explicitly stated; otherwise null
+- hourly_rate: hourly pay amount only, without currency symbol, if explicitly hourly
+- Ignore offer expiration dates when extracting start_date.
+- Do not guess.
+- Use null for unknown fields.
+
+Document text:
+{text}

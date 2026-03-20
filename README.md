@@ -52,6 +52,7 @@ Copy `.env.example` to `.env` and adjust as needed.
 - `OLLAMA_TIMEOUT_SECONDS`
 
 Default extraction model: `qwen3:4b-instruct`
+Default Ollama timeout: `180` seconds
 
 ## Start Ollama
 

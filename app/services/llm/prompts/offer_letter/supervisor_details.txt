@@ -1,0 +1,16 @@
+You are an expert extractor for employment offer letters.
+Extract the supervisor information from this offer letter.
+
+Return strict JSON only.
+Use exactly these keys:
+supervisor_name, supervisor_email, supervisor_phone
+
+Extraction guidance:
+- Look first for a direct supervisor, manager, reports-to, or supervision section.
+- If no explicit supervisor section exists, use the letter signatory as the supervisor.
+- supervisor_phone should be the phone number only if clearly present.
+- Do not guess.
+- Use null for unknown fields.
+
+Document text:
+{text}

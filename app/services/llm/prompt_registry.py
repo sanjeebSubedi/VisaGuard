@@ -32,14 +32,30 @@ PROMPT_SPECS = {
     "ead": PromptSpec(
         document_type="ead",
         template=(PROMPT_DIR / "ead.txt").read_text(),
-        prompt_version="v1",
-        required_fields=("employment_authorized_until", "ead_category"),
+        prompt_version="v2",
+        required_fields=(
+            "alien_registration_number",
+            "category",
+            "card_start_date",
+            "card_end_date",
+        ),
     ),
     "offer_letter": PromptSpec(
         document_type="offer_letter",
         template=(PROMPT_DIR / "offer_letter.txt").read_text(),
-        prompt_version="v1",
-        required_fields=("employer_name", "job_title", "employment_start_date"),
+        prompt_version="v2",
+        required_fields=(
+            "company_name",
+            "position_title",
+            "job_duties",
+            "start_date",
+            "hours_per_week",
+            "supervisor_name",
+            "work_address_street",
+            "work_address_city",
+            "work_address_state",
+            "work_address_zip",
+        ),
     ),
 }
 

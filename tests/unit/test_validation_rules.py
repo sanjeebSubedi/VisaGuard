@@ -4,23 +4,35 @@ from app.services.validation_rules import validate_extracted_values
 def test_validate_extracted_values_marks_missing_required_fields():
     result = validate_extracted_values(
         document_type="ead",
-        values={"employment_authorized_until": None, "ead_category": "C03B"},
+        values={
+            "alien_registration_number": "A123456789",
+            "category": "C03B",
+            "card_start_date": None,
+            "card_end_date": "2025-08-14",
+        },
     )
 
-    assert "employment_authorized_until" in result.missing_fields
+    assert "card_start_date" in result.missing_fields
 
 
 def test_validate_extracted_values_rejects_bad_date_format():
     result = validate_extracted_values(
         document_type="offer_letter",
         values={
-            "employment_start_date": "April 27, 2026",
-            "job_title": "Backend Software Engineer",
-            "employer_name": "TechNova",
+            "start_date": "April 27, 2026",
+            "position_title": "Backend Software Engineer",
+            "company_name": "TechNova",
+            "job_duties": "Build services",
+            "hours_per_week": "40",
+            "supervisor_name": "Ada Lovelace",
+            "work_address_street": "1 Main St",
+            "work_address_city": "Boston",
+            "work_address_state": "MA",
+            "work_address_zip": "02110",
         },
     )
 
-    assert "employment_start_date" in result.invalid_fields
+    assert "start_date" in result.invalid_fields
 
 
 def test_validate_extracted_values_allows_missing_optional_i20_fields():

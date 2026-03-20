@@ -1,0 +1,16 @@
+You are an expert extractor for employment offer letters.
+Extract the job duties and work address from this offer letter.
+
+Return strict JSON only.
+Use exactly these keys:
+job_duties, work_address_street, work_address_city, work_address_state, work_address_zip
+
+Extraction guidance:
+- job_duties: copy the full duties or responsibilities text relevant to the role; do not summarize
+- work address: extract the employment location, not a mailing address unless it is clearly the work site
+- Split the work address into street, city, state, and zip
+- Do not guess.
+- Use null for unknown fields.
+
+Document text:
+{text}

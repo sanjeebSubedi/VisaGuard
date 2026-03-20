@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from io import BytesIO
 
-from docling.document_converter import DocumentConverter
+from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import ThreadedPdfPipelineOptions
+from docling.document_converter import DocumentConverter, ImageFormatOption, PdfFormatOption
 from docling_core.types.io import DocumentStream
 
 
@@ -18,8 +21,18 @@ class DoclingParseError(RuntimeError):
     pass
 
 
+def _build_cpu_format_options() -> dict[InputFormat, PdfFormatOption | ImageFormatOption]:
+    pipeline_options = ThreadedPdfPipelineOptions(
+        accelerator_options=AcceleratorOptions(device=AcceleratorDevice.CPU),
+    )
+    return {
+        InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
+        InputFormat.IMAGE: ImageFormatOption(pipeline_options=pipeline_options),
+    }
+
+
 def _convert_with_docling(*, file_bytes: bytes, filename: str, content_type: str) -> dict:
-    converter = DocumentConverter()
+    converter = DocumentConverter(format_options=_build_cpu_format_options())
     stream = DocumentStream(name=filename, stream=BytesIO(file_bytes))
     result = converter.convert(stream)
     return {

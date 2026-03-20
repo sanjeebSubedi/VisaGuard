@@ -1,0 +1,16 @@
+You are an expert extractor for employment offer letters.
+The first extraction pass missed some fields.
+Search carefully and return only the missing fields in strict JSON.
+
+Missing fields:
+{missing_fields}
+
+Guidance:
+- EIN may appear as EIN, Employer Identification Number, or Tax ID
+- end_date may be described as end date, through date, or program end of employment
+- supervisor details may appear in a reports-to section or the signature block
+- hourly_rate should only be returned if the letter explicitly describes hourly compensation
+- Use null for fields you still cannot find.
+
+Document text:
+{text}

@@ -13,13 +13,30 @@ PRECEDENCE = {
 }
 
 FIELD_GROUPS = {
-    "employment_authorized_until": "employment_authorization",
+    "alien_registration_number": "employment_authorization",
+    "category": "employment_authorization",
+    "card_start_date": "employment_authorization",
+    "card_end_date": "employment_authorization",
+    "card_number": "employment_authorization",
     "program_start_date": "academic_program",
+    "program_end_date": "academic_program",
     "cip_code": "academic_program",
     "school_name": "academic_program",
-    "employer_name": "employment_offer",
-    "job_title": "employment_offer",
-    "employment_start_date": "employment_offer",
+    "company_name": "employment_offer",
+    "position_title": "employment_offer",
+    "job_duties": "employment_offer",
+    "start_date": "employment_offer",
+    "hours_per_week": "employment_offer",
+    "supervisor_name": "employment_offer",
+    "work_address_street": "employment_offer",
+    "work_address_city": "employment_offer",
+    "work_address_state": "employment_offer",
+    "work_address_zip": "employment_offer",
+    "ein": "employment_offer",
+    "end_date": "employment_offer",
+    "hourly_rate": "employment_offer",
+    "supervisor_email": "employment_offer",
+    "supervisor_phone": "employment_offer",
 }
 
 

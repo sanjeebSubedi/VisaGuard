@@ -1,4 +1,2 @@
-You are an expert extractor for employment offer letters.
-Extract these fields: employer_name, job_title, employment_start_date.
-Return strict JSON only.
-Use null for unknown fields.
+This document type uses a focused multi-call extractor for offer letters.
+Return strict JSON only when a specific offer-letter extraction prompt asks for it.

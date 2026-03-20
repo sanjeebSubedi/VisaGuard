@@ -24,7 +24,7 @@ def test_processing_pipeline_persists_artifacts_and_snapshot(client):
     assert body["extraction_status"] == "completed"
 
     snapshot = client.get("/api/intake/users/student-1/snapshot").json()
-    assert snapshot["snapshot_payload"]["employer_name"] == "OpenAI"
+    assert snapshot["snapshot_payload"]["company_name"] == "OpenAI"
 
 
 def test_parse_failure_marks_document_parse_failed(client, monkeypatch):
@@ -114,8 +114,8 @@ def test_snapshot_contract_still_returns_canonical_fields_after_docling_upgrade(
     body = snapshot.json()
     assert body["snapshot_payload"]["sevis_id"] == "N0035706308"
     assert body["snapshot_payload"]["major"] == "Computer Science"
-    assert body["snapshot_payload"]["employment_authorized_until"] == "2027-08-19"
-    assert body["snapshot_payload"]["employer_name"] == "OpenAI"
+    assert body["snapshot_payload"]["card_end_date"] == "2027-08-19"
+    assert body["snapshot_payload"]["company_name"] == "OpenAI"
 
 
 def test_missing_llm_fields_create_review_items(client, monkeypatch):
@@ -126,14 +126,38 @@ def test_missing_llm_fields_create_review_items(client, monkeypatch):
             (),
             {
                 "values": {
-                    "employer_name": "OpenAI",
-                    "job_title": "Research Intern",
-                    "employment_start_date": None,
+                    "company_name": "OpenAI",
+                    "position_title": "Research Intern",
+                    "job_duties": "Build internal tools",
+                    "start_date": None,
+                    "hours_per_week": "40",
+                    "supervisor_name": "Ada Lovelace",
+                    "work_address_street": "1 OpenAI Plaza",
+                    "work_address_city": "San Francisco",
+                    "work_address_state": "CA",
+                    "work_address_zip": "94110",
+                    "ein": None,
+                    "end_date": None,
+                    "hourly_rate": None,
+                    "supervisor_email": None,
+                    "supervisor_phone": None,
                 },
                 "raw_json": {
-                    "employer_name": "OpenAI",
-                    "job_title": "Research Intern",
-                    "employment_start_date": None,
+                    "company_name": "OpenAI",
+                    "position_title": "Research Intern",
+                    "job_duties": "Build internal tools",
+                    "start_date": None,
+                    "hours_per_week": "40",
+                    "supervisor_name": "Ada Lovelace",
+                    "work_address_street": "1 OpenAI Plaza",
+                    "work_address_city": "San Francisco",
+                    "work_address_state": "CA",
+                    "work_address_zip": "94110",
+                    "ein": None,
+                    "end_date": None,
+                    "hourly_rate": None,
+                    "supervisor_email": None,
+                    "supervisor_phone": None,
                 },
                 "prompt_version": "v1",
                 "model_name": "qwen3:4b-instruct",
@@ -151,4 +175,4 @@ def test_missing_llm_fields_create_review_items(client, monkeypatch):
 
     review_items = client.get("/api/intake/users/student-2/review-items").json()
 
-    assert any(item["review_type"] == "missing_field" and item["field_name"] == "employment_start_date" for item in review_items)
+    assert any(item["review_type"] == "missing_field" and item["field_name"] == "start_date" for item in review_items)

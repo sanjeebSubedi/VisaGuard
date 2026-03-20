@@ -84,14 +84,29 @@ def stub_pipeline_llm_extract(request, monkeypatch):
             }
         elif document_type == "ead":
             values = {
-                "employment_authorized_until": "2027-08-19",
-                "ead_category": "C03B",
+                "alien_registration_number": "A123456789",
+                "category": "C03B",
+                "card_start_date": "2026-08-20",
+                "card_end_date": "2027-08-19",
+                "card_number": None,
             }
         else:
             values = {
-                "employer_name": "OpenAI",
-                "job_title": "Research Intern",
-                "employment_start_date": "2026-09-01",
+                "company_name": "OpenAI",
+                "position_title": "Research Intern",
+                "job_duties": "Build internal tools",
+                "start_date": "2026-09-01",
+                "hours_per_week": "40",
+                "supervisor_name": "Ada Lovelace",
+                "work_address_street": "1 OpenAI Plaza",
+                "work_address_city": "San Francisco",
+                "work_address_state": "CA",
+                "work_address_zip": "94110",
+                "ein": None,
+                "end_date": None,
+                "hourly_rate": None,
+                "supervisor_email": None,
+                "supervisor_phone": None,
             }
         return LLMExtractionOutcome(
             values=values,
