@@ -18,8 +18,16 @@ PROMPT_SPECS = {
     "i20": PromptSpec(
         document_type="i20",
         template=(PROMPT_DIR / "i20.txt").read_text(),
-        prompt_version="v1",
-        required_fields=("program_start_date", "cip_code", "school_name"),
+        prompt_version="v2",
+        required_fields=(
+            "sevis_id",
+            "surname",
+            "given_name",
+            "cip_code",
+            "major",
+            "education_level",
+            "school_name",
+        ),
     ),
     "ead": PromptSpec(
         document_type="ead",

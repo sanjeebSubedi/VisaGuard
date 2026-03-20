@@ -71,9 +71,16 @@ def stub_pipeline_llm_extract(request, monkeypatch):
     def fake_extract(self, *, document_type: str, parsed_text: str) -> LLMExtractionOutcome:
         if document_type == "i20":
             values = {
-                "program_start_date": "2026-08-20",
+                "sevis_id": "N0035706308",
+                "surname": "Subedi",
+                "given_name": "Sanjeeb",
                 "cip_code": "11.0101",
+                "major": "Computer Science",
+                "education_level": "Master's",
                 "school_name": "Example University",
+                "school_code": None,
+                "program_start_date": None,
+                "program_end_date": None,
             }
         elif document_type == "ead":
             values = {

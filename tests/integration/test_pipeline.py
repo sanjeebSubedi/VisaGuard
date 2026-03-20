@@ -112,7 +112,8 @@ def test_snapshot_contract_still_returns_canonical_fields_after_docling_upgrade(
 
     assert snapshot.status_code == 200
     body = snapshot.json()
-    assert body["snapshot_payload"]["program_start_date"] == "2026-08-20"
+    assert body["snapshot_payload"]["sevis_id"] == "N0035706308"
+    assert body["snapshot_payload"]["major"] == "Computer Science"
     assert body["snapshot_payload"]["employment_authorized_until"] == "2027-08-19"
     assert body["snapshot_payload"]["employer_name"] == "OpenAI"
 
