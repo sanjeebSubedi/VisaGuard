@@ -115,3 +115,39 @@ def test_snapshot_contract_still_returns_canonical_fields_after_docling_upgrade(
     assert body["snapshot_payload"]["program_start_date"] == "2026-08-20"
     assert body["snapshot_payload"]["employment_authorized_until"] == "2027-08-19"
     assert body["snapshot_payload"]["employer_name"] == "OpenAI"
+
+
+def test_missing_llm_fields_create_review_items(client, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.pipeline.LLMExtractionService.extract",
+        lambda *args, **kwargs: type(
+            "Outcome",
+            (),
+            {
+                "values": {
+                    "employer_name": "OpenAI",
+                    "job_title": "Research Intern",
+                    "employment_start_date": None,
+                },
+                "raw_json": {
+                    "employer_name": "OpenAI",
+                    "job_title": "Research Intern",
+                    "employment_start_date": None,
+                },
+                "prompt_version": "v1",
+                "model_name": "qwen3:4b-instruct",
+            },
+        )(),
+    )
+
+    response = client.post(
+        "/api/intake/documents",
+        data={"user_id": "student-2", "document_type": "offer_letter"},
+        files={"file": ("offer.pdf", OFFER_LETTER_PDF_BYTES, "application/pdf")},
+    )
+
+    assert response.status_code == 201
+
+    review_items = client.get("/api/intake/users/student-2/review-items").json()
+
+    assert any(item["review_type"] == "missing_field" and item["field_name"] == "employment_start_date" for item in review_items)

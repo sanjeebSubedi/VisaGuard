@@ -29,9 +29,10 @@ class SnapshotResult:
     eligibility_map: dict[str, bool] = field(default_factory=dict)
     provenance_map: dict[str, str] = field(default_factory=dict)
     review_items: list[ReviewItemResult] = field(default_factory=list)
-
-
-def build_snapshot(facts_by_document_type: dict[str, list[ExtractedFact]]) -> SnapshotResult:
+def _build_snapshot(
+    facts_by_document_type: dict[str, list[ExtractedFact]],
+    validation_results: dict[str, dict[str, list[str]]],
+) -> SnapshotResult:
     snapshot = SnapshotResult()
     grouped: dict[str, list[tuple[str, ExtractedFact]]] = {}
     for document_type, facts in facts_by_document_type.items():
@@ -58,4 +59,17 @@ def build_snapshot(facts_by_document_type: dict[str, list[ExtractedFact]]) -> Sn
         elif winner_fact.confidence < 0.95:
             snapshot.review_items.append(ReviewItemResult(review_type="low_confidence", field_name=field_name))
 
+    for document_validation in validation_results.values():
+        for field_name in document_validation.get("missing_fields", []):
+            snapshot.review_items.append(ReviewItemResult(review_type="missing_field", field_name=field_name))
+        for field_name in document_validation.get("invalid_fields", []):
+            snapshot.review_items.append(ReviewItemResult(review_type="invalid_field", field_name=field_name))
+
     return snapshot
+
+
+def build_snapshot(
+    facts_by_document_type: dict[str, list[ExtractedFact]],
+    validation_results: dict[str, dict[str, list[str]]] | None = None,
+) -> SnapshotResult:
+    return _build_snapshot(facts_by_document_type, validation_results or {})

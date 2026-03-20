@@ -82,11 +82,24 @@ class DocumentPipeline:
     def _refresh_snapshot(self, user_id: str) -> None:
         documents = self.session.scalars(select(Document).where(Document.user_id == user_id)).all()
         facts_by_document_type: dict[str, list] = {}
+        validation_results: dict[str, dict[str, list[str]]] = {}
         for document in documents:
             facts = self.session.scalars(select(DocumentFact).where(DocumentFact.document_id == document.id)).all()
             facts_by_document_type.setdefault(document.document_type, []).extend(facts)
+            values = {fact.field_name: fact.value for fact in facts}
+            document_validation = validate_extracted_values(document.document_type, values)
+            current = validation_results.setdefault(
+                document.document_type,
+                {"missing_fields": [], "invalid_fields": []},
+            )
+            for field_name in document_validation.missing_fields:
+                if field_name not in current["missing_fields"]:
+                    current["missing_fields"].append(field_name)
+            for field_name in document_validation.invalid_fields:
+                if field_name not in current["invalid_fields"]:
+                    current["invalid_fields"].append(field_name)
 
-        snapshot_result = build_snapshot(facts_by_document_type)
+        snapshot_result = build_snapshot(facts_by_document_type, validation_results=validation_results)
         latest_version = self.session.scalar(
             select(StudentStateSnapshot.version)
             .where(StudentStateSnapshot.user_id == user_id)

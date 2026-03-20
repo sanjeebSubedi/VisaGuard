@@ -13,3 +13,15 @@ def test_build_snapshot_prefers_ead_for_authorization_dates_and_blocks_conflicts
     assert snapshot.payload["employment_authorized_until"] == "2027-08-19"
     assert snapshot.eligibility_map["employment_authorized_until"] is False
     assert snapshot.review_items[0].review_type == "conflict"
+
+
+def test_build_snapshot_adds_missing_field_review_items_from_validation_results():
+    result = build_snapshot(
+        facts_by_document_type={"offer_letter": []},
+        validation_results={"offer_letter": {"missing_fields": ["employment_start_date"], "invalid_fields": []}},
+    )
+
+    assert any(
+        item.review_type == "missing_field" and item.field_name == "employment_start_date"
+        for item in result.review_items
+    )
