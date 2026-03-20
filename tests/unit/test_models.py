@@ -9,3 +9,18 @@ def test_document_and_snapshot_tables_create(db_session):
 
     assert document.id is not None
     assert snapshot.id is not None
+
+
+def test_document_can_track_parse_failure_and_retained_text_path(db_session):
+    document = Document(
+        user_id="student-1",
+        document_type="offer_letter",
+        parse_status="parse_failed",
+        retained_text_uri="retained/offer-letter.txt",
+    )
+    db_session.add(document)
+    db_session.commit()
+
+    assert document.id is not None
+    assert document.parse_status == "parse_failed"
+    assert document.retained_text_uri == "retained/offer-letter.txt"
