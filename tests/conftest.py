@@ -9,6 +9,7 @@ from app.db.base import Base
 import app.db.models  # noqa: F401
 from app.db.session import get_db_session
 from app.main import app
+from app.services.llm.extractor import LLMExtractionOutcome
 from app.services.parsing.docling_parser import ParsedDocument
 
 
@@ -59,12 +60,42 @@ def stub_pipeline_docling_parse(monkeypatch):
     monkeypatch.setattr("app.services.pipeline.parse_with_docling", fake_parse_with_docling)
 
 
+@pytest.fixture(autouse=True)
+def stub_pipeline_llm_extract(monkeypatch):
+    def fake_extract(self, *, document_type: str, parsed_text: str) -> LLMExtractionOutcome:
+        if document_type == "i20":
+            values = {
+                "program_start_date": "2026-08-20",
+                "cip_code": "11.0101",
+                "school_name": "Example University",
+            }
+        elif document_type == "ead":
+            values = {
+                "employment_authorized_until": "2027-08-19",
+                "ead_category": "C03B",
+            }
+        else:
+            values = {
+                "employer_name": "OpenAI",
+                "job_title": "Research Intern",
+                "employment_start_date": "2026-09-01",
+            }
+        return LLMExtractionOutcome(
+            values=values,
+            raw_json=values.copy(),
+            prompt_version="v1",
+            model_name="qwen3:4b-instruct",
+        )
+
+    monkeypatch.setattr("app.services.pipeline.LLMExtractionService.extract", fake_extract)
+
+
 @pytest.fixture
 def client(db_session) -> Generator[TestClient, None, None]:
     def override_db_session() -> Generator[Session, None, None]:
         yield db_session
 
     app.dependency_overrides[get_db_session] = override_db_session
-    with TestClient(app) as test_client:
+    with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
     app.dependency_overrides.clear()

@@ -87,6 +87,8 @@ def test_offer_letter_persists_redacted_retained_text(client, db_session, monkey
 
     assert "[REDACTED_EMAIL]" in retained_text
     assert "ada@example.com" not in retained_text
+    assert document.llm_raw_response_uri == f"llm/document-{document.id}.json"
+    assert document.llm_model_name == "qwen3:4b-instruct"
 
 
 def test_snapshot_contract_still_returns_canonical_fields_after_docling_upgrade(client):

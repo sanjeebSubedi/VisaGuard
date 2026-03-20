@@ -4,18 +4,20 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db.models import Document, DocumentFact, ReviewItem, StudentStateSnapshot
-from app.services.extractors.router import get_extractor
+from app.services.llm.extractor import LLMExtractionService
 from app.services.normalization import build_snapshot
 from app.services.parsing.docling_parser import parse_with_docling
 from app.services.policy import get_document_policy
 from app.services.redaction import redact_direct_identifiers
 from app.services.storage import ArtifactStorage
+from app.services.validation_rules import validate_extracted_values
 
 
 class DocumentPipeline:
     def __init__(self, session: Session, storage: ArtifactStorage) -> None:
         self.session = session
         self.storage = storage
+        self.llm_extractor = LLMExtractionService()
 
     def process_uploaded_document(self, document: Document, *, filename: str, content_type: str) -> Document:
         policy = get_document_policy(document.document_type)
@@ -48,21 +50,26 @@ class DocumentPipeline:
             document.retained_text_uri = self.storage.write_retained_text(document.id, redacted.text)
             document.redaction_status = "completed"
 
-        extractor = get_extractor(policy.document_type)
-        extracted_facts = extractor.extract(extraction_text)
-        document.extractor_version = "rule-based-v1"
+        outcome = self.llm_extractor.extract(document_type=policy.document_type, parsed_text=extraction_text)
+        validate_extracted_values(document_type=policy.document_type, values=outcome.values)
+        document.llm_model_name = outcome.model_name
+        document.llm_prompt_version = outcome.prompt_version
+        document.llm_raw_response_uri = self.storage.write_llm_response(document.id, outcome.raw_json)
+        document.extractor_version = "ollama-v1"
         document.extraction_status = "completed"
 
-        for fact in extracted_facts:
+        for field_name, value in outcome.values.items():
+            if value is None:
+                continue
             self.session.add(
                 DocumentFact(
                     document_id=document.id,
-                    field_name=fact.field_name,
-                    value=fact.value,
+                    field_name=field_name,
+                    value=value,
                     normalized_value=None,
-                    confidence=fact.confidence,
-                    status=fact.status,
-                    source_location=fact.source_location,
+                    confidence=0.95,
+                    status="provisional",
+                    source_location=f"llm:{field_name}",
                 )
             )
 
