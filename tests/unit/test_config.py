@@ -10,3 +10,11 @@ def test_settings_defaults(tmp_path, monkeypatch):
 
     assert settings.database_url.startswith("sqlite:///")
     assert settings.storage_root.endswith("storage")
+
+
+def test_settings_default_ollama_model(monkeypatch):
+    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+
+    settings = Settings()
+
+    assert settings.ollama_model == "qwen3:4b-instruct"
