@@ -4,9 +4,16 @@ from pydantic import BaseModel
 
 
 class I20ExtractionResult(BaseModel):
-    program_start_date: str | None = None
+    sevis_id: str | None = None
+    surname: str | None = None
+    given_name: str | None = None
     cip_code: str | None = None
+    major: str | None = None
+    education_level: str | None = None
     school_name: str | None = None
+    school_code: str | None = None
+    program_start_date: str | None = None
+    program_end_date: str | None = None
 
 
 class EADExtractionResult(BaseModel):
