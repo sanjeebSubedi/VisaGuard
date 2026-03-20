@@ -1,3 +1,8 @@
+from sqlalchemy import create_engine, inspect
+
+from app.db.base import Base
+
+
 def test_upload_creates_document_record(client, db_session):
     response = client.post(
         "/api/intake/documents",
@@ -44,3 +49,16 @@ def test_upload_fails_when_ollama_is_unavailable(client, monkeypatch):
     )
 
     assert response.status_code == 500
+
+
+def test_initialize_database_creates_tables_for_manual_local_runs(tmp_path, monkeypatch):
+    import app.main as main_module
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'manual.db'}", future=True)
+    Base.metadata.drop_all(engine)
+    monkeypatch.setattr(main_module, "build_engine", lambda settings=None: engine)
+
+    main_module.initialize_database()
+
+    inspector = inspect(engine)
+    assert "documents" in inspector.get_table_names()
