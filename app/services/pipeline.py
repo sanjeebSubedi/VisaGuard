@@ -18,8 +18,12 @@ class DocumentPipeline:
         self.session = session
         self.storage = storage
 
-    def process_uploaded_document(self, document: Document) -> Document:
-        parsed = parse_with_docling(self.storage.load_original(document.encrypted_original_uri or ""))
+    def process_uploaded_document(self, document: Document, *, filename: str, content_type: str) -> Document:
+        parsed = parse_with_docling(
+            file_bytes=self.storage.load_original(document.encrypted_original_uri or ""),
+            filename=filename,
+            content_type=content_type,
+        )
         parse_artifact_uri = Path("parsed") / f"document-{document.id}.json"
         self.storage.write_json(parse_artifact_uri, parsed.raw_payload)
 

@@ -10,6 +10,7 @@ from app.db.session import get_db_session
 from app.services.fingerprints import sha256_bytes
 from app.services.pipeline import DocumentPipeline
 from app.services.storage import ArtifactStorage
+from app.services.validation import UploadValidationError, validate_upload
 
 router = APIRouter(prefix="/api/intake", tags=["intake"])
 ALLOWED_DOCUMENT_TYPES = {"i20", "ead", "offer_letter"}
@@ -24,6 +25,15 @@ def upload_document(
 ) -> Document:
     if document_type not in ALLOWED_DOCUMENT_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported document type")
+
+    try:
+        validate_upload(
+            document_type=document_type,
+            filename=file.filename or "upload.bin",
+            content_type=file.content_type or "application/octet-stream",
+        )
+    except UploadValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     content = file.file.read()
     fingerprint = sha256_bytes(content)
@@ -45,7 +55,11 @@ def upload_document(
     session.refresh(document)
 
     pipeline = DocumentPipeline(session=session, storage=storage)
-    return pipeline.process_uploaded_document(document)
+    return pipeline.process_uploaded_document(
+        document,
+        filename=file.filename or "upload.bin",
+        content_type=file.content_type or "application/octet-stream",
+    )
 
 
 @router.get("/users/{user_id}/snapshot", response_model=SnapshotResponse)
