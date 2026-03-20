@@ -6,6 +6,9 @@ from app.db.models import Document
 
 I20_FIXTURE_BYTES = b"Program Start Date: 2026-08-20\nProgram End Date: 2028-05-15\n"
 OFFER_LETTER_FIXTURE_BYTES = b"Employer: OpenAI\nTitle: Research Intern\nStart Date: 2026-09-01\nEmail: ada@example.com\n"
+I20_PDF_BYTES = b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n"
+EAD_IMAGE_BYTES = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+OFFER_LETTER_PDF_BYTES = b"%PDF-1.7\n2 0 obj\n<< /Type /Page >>\nendobj\n"
 
 
 def test_processing_pipeline_persists_artifacts_and_snapshot(client):
@@ -84,3 +87,29 @@ def test_offer_letter_persists_redacted_retained_text(client, db_session, monkey
 
     assert "[REDACTED_EMAIL]" in retained_text
     assert "ada@example.com" not in retained_text
+
+
+def test_snapshot_contract_still_returns_canonical_fields_after_docling_upgrade(client):
+    client.post(
+        "/api/intake/documents",
+        data={"user_id": "student-1", "document_type": "i20"},
+        files={"file": ("i20.pdf", I20_PDF_BYTES, "application/pdf")},
+    )
+    client.post(
+        "/api/intake/documents",
+        data={"user_id": "student-1", "document_type": "ead"},
+        files={"file": ("ead.png", EAD_IMAGE_BYTES, "image/png")},
+    )
+    client.post(
+        "/api/intake/documents",
+        data={"user_id": "student-1", "document_type": "offer_letter"},
+        files={"file": ("offer.pdf", OFFER_LETTER_PDF_BYTES, "application/pdf")},
+    )
+
+    snapshot = client.get("/api/intake/users/student-1/snapshot")
+
+    assert snapshot.status_code == 200
+    body = snapshot.json()
+    assert body["snapshot_payload"]["program_start_date"] == "2026-08-20"
+    assert body["snapshot_payload"]["employment_authorized_until"] == "2027-08-19"
+    assert body["snapshot_payload"]["employer_name"] == "OpenAI"

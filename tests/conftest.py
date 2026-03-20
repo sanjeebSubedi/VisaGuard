@@ -27,21 +27,36 @@ def db_session(tmp_path) -> Generator[Session, None, None]:
 
 
 @pytest.fixture(autouse=True)
+def isolated_storage_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("STORAGE_ROOT", str(tmp_path / "storage"))
+
+
+@pytest.fixture(autouse=True)
 def stub_pipeline_docling_parse(monkeypatch):
     def fake_parse_with_docling(*, file_bytes: bytes, filename: str, content_type: str) -> ParsedDocument:
         lowered = filename.lower()
-        if lowered.endswith('.png') or lowered.endswith('.jpg') or lowered.endswith('.jpeg'):
-            text = 'Card Expires: 2027-08-19\nCategory: C03B'
+        if content_type.startswith("image/"):
+            text = "Card Expires: 2027-08-19\nCategory: C03B"
+        elif lowered.endswith(".pdf") and "i20" in lowered:
+            text = "Program Start Date: 2026-08-20\nCIP Code: 11.0101\nSchool Name: Example University"
+        elif lowered.endswith(".pdf") and "offer" in lowered:
+            text = (
+                "Employer: OpenAI\n"
+                "Title: Research Intern\n"
+                "Start Date: 2026-09-01\n"
+                "Student Name: Ada Lovelace\n"
+                "Email: ada@example.com\n"
+                "Phone: 555-111-2222\n"
+                "SEVIS ID: N0012345678\n"
+            )
         else:
-            text = file_bytes.decode('utf-8', errors='ignore')
+            text = file_bytes.decode("utf-8", errors="ignore")
         return ParsedDocument(
             text=text,
-            metadata={'pages': 1, 'filename': filename, 'content_type': content_type},
-            raw_payload={'text': text},
+            metadata={"pages": 1, "filename": filename, "content_type": content_type},
+            raw_payload={"text": text},
         )
-
-        
-    monkeypatch.setattr('app.services.pipeline.parse_with_docling', fake_parse_with_docling)
+    monkeypatch.setattr("app.services.pipeline.parse_with_docling", fake_parse_with_docling)
 
 
 @pytest.fixture
