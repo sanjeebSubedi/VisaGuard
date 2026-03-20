@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from app.db.models import Document, DocumentFact, ReviewItem, StudentStateSnapshot
 from app.services.extractors.router import get_extractor
 from app.services.normalization import build_snapshot
-from app.services.parsing.docling_parser import parse_with_docling
+from app.services.parsing.docling_parser import DoclingParseError, parse_with_docling
+from app.services.policy import get_document_policy
 from app.services.redaction import redact_direct_identifiers
 from app.services.storage import ArtifactStorage
 
@@ -19,11 +20,23 @@ class DocumentPipeline:
         self.storage = storage
 
     def process_uploaded_document(self, document: Document, *, filename: str, content_type: str) -> Document:
-        parsed = parse_with_docling(
-            file_bytes=self.storage.load_original(document.encrypted_original_uri or ""),
-            filename=filename,
-            content_type=content_type,
-        )
+        policy = get_document_policy(document.document_type)
+        try:
+            parsed = parse_with_docling(
+                file_bytes=self.storage.load_original(document.encrypted_original_uri or ""),
+                filename=filename,
+                content_type=content_type,
+            )
+        except Exception as exc:
+            document.parse_status = "parse_failed"
+            document.parse_error_message = str(exc)
+            document.redaction_status = "pending"
+            document.extraction_status = "pending"
+            document.parser_version = "docling-adapter-v1"
+            self.session.commit()
+            self.session.refresh(document)
+            return document
+
         parse_artifact_uri = Path("parsed") / f"document-{document.id}.json"
         self.storage.write_json(parse_artifact_uri, parsed.raw_payload)
 
@@ -37,7 +50,7 @@ class DocumentPipeline:
         document.redacted_artifact_uri = str(redacted_artifact_uri)
         document.parser_version = "docling-adapter-v1"
 
-        extractor = get_extractor(document.document_type)
+        extractor = get_extractor(policy.document_type)
         extracted_facts = extractor.extract(redacted.text)
         document.extractor_version = "rule-based-v1"
         document.extraction_status = "completed"
