@@ -79,6 +79,38 @@ class DocumentPipeline:
         self.session.refresh(document)
         return document
 
+    def process_manual_ead_entry(self, document: Document, *, values: dict[str, str | None]) -> Document:
+        validation = validate_extracted_values("ead", values)
+        if validation.missing_fields or validation.invalid_fields:
+            raise ValueError("Manual EAD entry failed validation")
+
+        document.parse_status = "skipped"
+        document.redaction_status = "skipped"
+        document.extraction_status = "completed"
+        document.parser_version = "manual-entry-v1"
+        document.extractor_version = "manual-entry-v1"
+
+        for field_name, value in values.items():
+            if value is None:
+                continue
+            self.session.add(
+                DocumentFact(
+                    document_id=document.id,
+                    field_name=field_name,
+                    value=value,
+                    normalized_value=None,
+                    confidence=1.0,
+                    status="provisional",
+                    source_location=f"manual:{field_name}",
+                )
+            )
+
+        self.session.flush()
+        self._refresh_snapshot(document.user_id)
+        self.session.commit()
+        self.session.refresh(document)
+        return document
+
     def _refresh_snapshot(self, user_id: str) -> None:
         documents = self.session.scalars(select(Document).where(Document.user_id == user_id)).all()
         facts_by_document_type: dict[str, list] = {}

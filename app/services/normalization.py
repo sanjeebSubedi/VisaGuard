@@ -60,7 +60,7 @@ def _build_snapshot(
         precedence = PRECEDENCE.get(FIELD_GROUPS.get(field_name, "employment_offer"), [])
         sorted_candidates = sorted(
             candidates,
-            key=lambda item: precedence.index(item[0]) if item[0] in precedence else len(precedence),
+            key=lambda item: _candidate_rank(item[0], item[1], precedence),
         )
         winner_type, winner_fact = sorted_candidates[0]
         snapshot.payload[field_name] = winner_fact.value
@@ -83,6 +83,15 @@ def _build_snapshot(
             snapshot.review_items.append(ReviewItemResult(review_type="invalid_field", field_name=field_name))
 
     return snapshot
+
+
+def _candidate_rank(document_type: str, fact: ExtractedFact, precedence: list[str]) -> tuple[int, str]:
+    # Manual EAD entries win over uploaded EAD artifacts when both exist.
+    if document_type == "ead" and fact.source_location and fact.source_location.startswith("manual:"):
+        return (-1, fact.source_location)
+    if document_type in precedence:
+        return (precedence.index(document_type), fact.source_location)
+    return (len(precedence), fact.source_location)
 
 
 def build_snapshot(

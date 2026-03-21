@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DocumentResponse(BaseModel):
@@ -34,3 +34,12 @@ class ReviewItemResponse(BaseModel):
     priority: str
     assigned_role: str
     resolution_status: str
+
+
+class ManualEADEntryRequest(BaseModel):
+    user_id: str
+    alien_registration_number: str
+    category: str
+    card_start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    card_end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    card_number: str | None = None
