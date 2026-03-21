@@ -139,6 +139,23 @@ curl -X POST http://127.0.0.1:8000/api/intake/documents \
   -F file=@documents/ead.png
 ```
 
+## Manual EAD entry
+
+If you do not have an EAD image handy, you can create a manual EAD entry that feeds the same snapshot, timeline, and policy flows.
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/intake/ead/manual \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "user_id": "student-1",
+    "alien_registration_number": "A123456789",
+    "category": "C03B",
+    "card_start_date": "2026-08-20",
+    "card_end_date": "2027-08-19",
+    "card_number": "EAD1234567"
+  }'
+```
+
 ## Inspect results
 
 ```bash

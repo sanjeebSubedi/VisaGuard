@@ -25,3 +25,24 @@ def test_build_snapshot_adds_missing_field_review_items_from_validation_results(
         item.review_type == "missing_field" and item.field_name == "start_date"
         for item in result.review_items
     )
+
+
+
+def test_build_snapshot_prefers_manual_ead_over_uploaded_ead():
+    manual = ExtractedFact(
+        field_name="card_end_date",
+        value="2027-08-19",
+        confidence=0.99,
+        source_location="manual:card_end_date",
+    )
+    uploaded = ExtractedFact(
+        field_name="card_end_date",
+        value="2027-08-01",
+        confidence=0.99,
+        source_location="llm:card_end_date",
+    )
+
+    snapshot = build_snapshot(facts_by_document_type={"ead": [uploaded, manual]})
+
+    assert snapshot.payload["card_end_date"] == "2027-08-19"
+    assert snapshot.provenance_map["card_end_date"] == "ead:manual:card_end_date"
