@@ -1,0 +1,22 @@
+[
+  {
+    "cip_code": "11.0701",
+    "title": "Computer Science",
+    "description": "A program that focuses on computer theory, computing problems, and the design of computer systems and software, including algorithms, programming languages, data structures, operating systems, networks, and software engineering."
+  },
+  {
+    "cip_code": "11.0101",
+    "title": "Computer and Information Sciences, General",
+    "description": "A general program that covers computing fundamentals, information systems, software development, and the use of computers to solve problems in academic and applied settings."
+  },
+  {
+    "cip_code": "14.0901",
+    "title": "Computer Engineering, General",
+    "description": "A program that prepares individuals to apply mathematical and scientific principles to the design and development of computer hardware and software systems."
+  },
+  {
+    "cip_code": "52.1301",
+    "title": "Management Science",
+    "description": "A program that focuses on the application of quantitative modeling and analytical methods to organizational decision-making, operations, and management problems."
+  }
+]

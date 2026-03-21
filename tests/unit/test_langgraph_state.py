@@ -13,3 +13,14 @@ def test_langgraph_state_supports_timeline_outputs():
 
 def test_langgraph_state_module_imports():
     assert VisaGuardState is not None
+
+
+
+def test_langgraph_state_supports_policy_outputs():
+    state: VisaGuardState = {
+        "cip_code": "11.0701",
+        "policy_analysis": {"summary": "Job duties align with core computing coursework."},
+        "policy_verdict": {"verdict": "directly_related", "confidence": "high"},
+    }
+
+    assert state["policy_verdict"]["verdict"] == "directly_related"
