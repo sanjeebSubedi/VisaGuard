@@ -80,6 +80,42 @@ The repo now includes a deterministic timeline manager under `app/services/timel
 - it computes structured `timeline_inputs` and `timeline_status`
 - it covers OPT/STEM unemployment, reporting windows, grace periods, and Cap-Gap when enough facts are present
 
+
+## Policy agent
+
+The repo now includes a grounded policy agent under `app/services/policy_agent/`.
+
+- it reads structured academic and job facts only in v1
+- it uses a local `cip_code` JSON dataset plus local policy source files
+- it uses a prebuilt local hybrid retrieval index
+- it writes structured `policy_analysis` and `policy_verdict` outputs
+
+### Policy data and index
+
+- CIP dataset: `data/policy/cip_codes.json`
+- policy sources: `data/policy/sources/`
+- default index path: `data/policy/index/policy_index.json`
+
+Build or refresh the local policy index with:
+
+```bash
+uv run python - <<'PYCMD'
+from pathlib import Path
+
+from app.core.config import Settings
+from app.services.policy_agent.indexer import build_policy_index
+
+settings = Settings()
+policy_root = Path(settings.policy_data_root)
+
+build_policy_index(
+    cip_dataset_path=policy_root / "cip_codes.json",
+    policy_sources_dir=policy_root / "sources",
+    output_path=Path(settings.policy_index_path),
+)
+PYCMD
+```
+
 ## Upload examples
 
 ```bash
@@ -117,4 +153,5 @@ uv run pytest tests/unit -v
 uv run pytest tests/integration -v
 uv run pytest tests/unit -v && uv run pytest tests/integration -v
 uv run pytest tests/unit/test_timeline_*.py tests/integration/test_timeline_manager.py -v
+uv run pytest tests/unit/test_policy_*.py tests/integration/test_policy_agent_integration.py -v
 ```
