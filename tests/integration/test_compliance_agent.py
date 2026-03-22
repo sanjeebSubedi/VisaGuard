@@ -46,3 +46,42 @@ def test_compliance_agent_writes_final_compliance_record_into_state():
     assert state["final_compliance_record"]["overall_state"] == "IN_STATUS"
     assert state["final_compliance_record"]["severity"] == "WARNING"
     assert "Report employer to SEVP by 2026-06-25" in state["final_compliance_record"]["action_plan"]
+
+
+def test_compliance_agent_treats_not_applicable_conditional_clock_as_neutral():
+    timeline_status = TimelineStatus(
+        current_phase="opt_active",
+        clocks={
+            "opt_unemployment": ClockResult(
+                status="active",
+                relevant_dates={"card_start_date": "2026-01-01"},
+                days_remaining=50,
+                limit_days=90,
+            ),
+            "cap_gap": ClockResult(status="not_applicable"),
+        },
+        deadlines=[],
+        risk_flags=[],
+        action_items=[],
+    )
+    policy_verdict = PolicyVerdict(
+        verdict="directly_related",
+        confidence="high",
+        rationale=PolicyRationale(
+            major_match="strong match",
+            duty_match="strong match",
+            policy_basis="The work applies knowledge gained in the degree program.",
+            summary="The role is directly related to the major.",
+        ),
+        cited_sources=[],
+    )
+
+    state = evaluate_compliance_state(
+        {
+            "timeline_status": timeline_status.model_dump(),
+            "policy_verdict": policy_verdict.model_dump(),
+        }
+    )
+
+    assert state["final_compliance_record"]["overall_state"] == "IN_STATUS"
+    assert state["final_compliance_record"]["severity"] == "INFO"
