@@ -50,6 +50,7 @@ Copy `.env.example` to `.env` and adjust as needed.
 - `OLLAMA_HOST`
 - `OLLAMA_MODEL`
 - `OLLAMA_TIMEOUT_SECONDS`
+- `LANGGRAPH_CHECKPOINTER_PATH`
 
 Default extraction model: `qwen3:4b-instruct`
 Default Ollama timeout: `180` seconds
@@ -125,6 +126,26 @@ The repo now includes a deterministic compliance agent under `app/services/compl
 - it applies a pessimistic decision matrix where the worst legally relevant condition wins
 - it writes a strict `final_compliance_record` with `overall_state`, `severity`, `action_plan`, and `audit_summary`
 
+## LangGraph workflow
+
+The repo now includes a callable LangGraph workflow that orchestrates the three evaluators.
+
+- it loads the latest stored snapshot by `user_id`
+- it runs `timeline` and `policy` in parallel
+- it fans in to `compliance`
+- it stores only the latest workflow result in the app DB
+- it uses a LangGraph checkpointer for execution history keyed by `thread_id = user_id`
+
+Run the full workflow with:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/workflows/compliance/run \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id": "student-1", "evaluation_date": "2026-03-22"}'
+```
+
+Before using the workflow endpoint, make sure the policy index exists at `data/policy/index/policy_index.json` or your configured `POLICY_INDEX_PATH`.
+
 ## Upload examples
 
 ```bash
@@ -181,4 +202,5 @@ uv run pytest tests/unit -v && uv run pytest tests/integration -v
 uv run pytest tests/unit/test_timeline_*.py tests/integration/test_timeline_manager.py -v
 uv run pytest tests/unit/test_policy_*.py tests/integration/test_policy_agent_integration.py -v
 uv run pytest tests/unit/test_compliance_*.py tests/integration/test_compliance_agent.py -v
+uv run pytest tests/unit/test_graph_*.py tests/unit/test_workflow_results.py tests/integration/test_workflow_api.py -v
 ```
