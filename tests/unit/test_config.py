@@ -37,3 +37,11 @@ def test_settings_default_policy_paths(monkeypatch):
 
     assert settings.policy_data_root == "./data/policy"
     assert settings.policy_index_path == "./data/policy/index/policy_index.json"
+
+
+def test_settings_default_gemini_model(monkeypatch):
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+
+    settings = Settings()
+
+    assert settings.gemini_model == "gemini-2.5-flash"

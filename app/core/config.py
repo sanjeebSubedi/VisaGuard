@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     ollama_host: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen3:4b-instruct"
     ollama_timeout_seconds: int = 180
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.5-flash"
     policy_data_root: str = "./data/policy"
     policy_index_path: str = "./data/policy/index/policy_index.json"
     langgraph_checkpointer_path: str = "./langgraph.sqlite"
