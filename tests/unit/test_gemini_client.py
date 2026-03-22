@@ -1,6 +1,10 @@
 import pytest
 
-from app.services.reasoning_llm.gemini_client import GeminiReasoningClient, GeminiUnavailableError
+from app.services.reasoning_llm.gemini_client import (
+    GeminiReasoningClient,
+    GeminiResponseError,
+    GeminiUnavailableError,
+)
 
 
 def test_gemini_client_raises_for_missing_api_key():
@@ -30,3 +34,23 @@ def test_gemini_client_returns_structured_payload(monkeypatch):
     payload = client.generate_structured(model="gemini-test", prompt="hello")
 
     assert payload["verdict"] == "directly_related"
+
+
+def test_gemini_client_raises_for_malformed_response(monkeypatch):
+    class FakeModels:
+        def generate_content(self, *, model, contents):
+            class Response:
+                text = "not-json"
+
+            return Response()
+
+    class FakeClient:
+        def __init__(self, *, api_key):
+            self.models = FakeModels()
+
+    monkeypatch.setattr("app.services.reasoning_llm.gemini_client.genai.Client", FakeClient)
+
+    client = GeminiReasoningClient(api_key="test-key")
+
+    with pytest.raises(GeminiResponseError):
+        client.generate_structured(model="gemini-test", prompt="hello")

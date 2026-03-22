@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from app.services.policy_agent.agent import PolicyAgent
 from app.services.policy_agent.indexer import build_policy_index
 
@@ -82,3 +84,26 @@ def test_policy_agent_filters_citations_to_retrieved_sources(tmp_path):
     )
 
     assert [source.source_id for source in result['policy_verdict'].cited_sources] == ['cip-11.0701']
+
+
+def test_policy_agent_raises_when_rationale_shape_is_invalid(tmp_path):
+    index_path = tmp_path / 'policy_index.json'
+    build_policy_index(cip_dataset_path=DATASET_PATH, policy_sources_dir=SOURCES_DIR, output_path=index_path)
+    llm = StubReasoningClient(
+        [
+            {"summary": "The duties align with computer science training.", "evidence_strength": "strong", "ambiguity_notes": []},
+            {"verdict": "directly_related", "confidence": "high", "rationale": "bad-shape", "cited_source_ids": []},
+        ]
+    )
+
+    agent = PolicyAgent(index_path=index_path, cip_dataset_path=DATASET_PATH, reasoning_client=llm, model_name='test-model')
+
+    with pytest.raises(TypeError):
+        agent.evaluate(
+            {
+                'cip_code': '11.0701',
+                'major': 'Computer Science',
+                'position_title': 'Backend Software Engineer',
+                'job_duties': 'Build backend APIs, distributed systems, and database-backed services.',
+            }
+        )
