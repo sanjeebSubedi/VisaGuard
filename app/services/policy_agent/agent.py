@@ -5,7 +5,14 @@ from typing import Any
 
 from app.services.policy_agent.cip_loader import CIPDataset, CIPNotFoundError
 from app.services.policy_agent.retriever import HybridPolicyRetriever
-from app.services.policy_agent.types import PolicyAnalysis, PolicyRationale, PolicyVerdict, RetrievedSource
+from app.services.policy_agent.types import (
+    PolicyAnalysis,
+    PolicyAnalysisPayload,
+    PolicyRationale,
+    PolicyVerdict,
+    PolicyVerdictPayload,
+    RetrievedSource,
+)
 
 
 class PolicyAgent:
@@ -36,6 +43,7 @@ class PolicyAgent:
         analysis_payload = self._reasoning_client.generate_structured(
             model=self._model_name,
             prompt=self._analysis_prompt_for(facts, cip_entry, retrieved_sources),
+            schema=PolicyAnalysisPayload,
         )
         analysis = PolicyAnalysis(
             cip_code=cip_entry.cip_code,
@@ -49,6 +57,7 @@ class PolicyAgent:
         verdict_payload = self._reasoning_client.generate_structured(
             model=self._model_name,
             prompt=self._verdict_prompt_for(analysis),
+            schema=PolicyVerdictPayload,
         )
         source_map = {source.source_id: source for source in retrieved_sources}
         cited_sources = [source_map[source_id] for source_id in verdict_payload.get('cited_source_ids', []) if source_id in source_map]

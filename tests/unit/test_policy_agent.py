@@ -14,9 +14,11 @@ class StubReasoningClient:
     def __init__(self, responses):
         self._responses = list(responses)
         self.prompts = []
+        self.schemas = []
 
-    def generate_structured(self, *, model: str, prompt: str) -> dict:
+    def generate_structured(self, *, model: str, prompt: str, schema=None) -> dict:
         self.prompts.append(prompt)
+        self.schemas.append(schema)
         return self._responses.pop(0)
 
 
@@ -43,6 +45,10 @@ def test_policy_agent_generates_analysis_and_verdict(tmp_path):
     assert result['policy_analysis'].summary.startswith('The duties align')
     assert result['policy_verdict'].verdict == 'directly_related'
     assert result['policy_verdict'].cited_sources[0].source_id == 'cip-11.0701'
+    assert [schema.__name__ for schema in llm.schemas] == [
+        'PolicyAnalysisPayload',
+        'PolicyVerdictPayload',
+    ]
 
 
 def test_policy_agent_returns_insufficient_evidence_for_unknown_cip(tmp_path):

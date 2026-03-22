@@ -12,7 +12,7 @@ class StubReasoningClient:
     def __init__(self, responses):
         self._responses = list(responses)
 
-    def generate_structured(self, *, model: str, prompt: str) -> dict:
+    def generate_structured(self, *, model: str, prompt: str, schema=None) -> dict:
         return self._responses.pop(0)
 
 

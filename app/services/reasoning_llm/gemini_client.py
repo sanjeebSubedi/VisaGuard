@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from google import genai
+from google.genai import types
+from pydantic import BaseModel
 
 
 class GeminiUnavailableError(RuntimeError):
@@ -23,13 +24,22 @@ class GeminiReasoningClient:
         except Exception as exc:
             raise GeminiUnavailableError(str(exc)) from exc
 
-    def generate_structured(self, *, model: str, prompt: str) -> dict[str, Any]:
+    def generate_structured(self, *, model: str, prompt: str, schema: Any) -> dict[str, Any]:
         try:
             response = self._client.models.generate_content(
                 model=model,
                 contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                ),
             )
-            return json.loads(response.text)
+            parsed = getattr(response, "parsed", None)
+            if isinstance(parsed, BaseModel):
+                return parsed.model_dump()
+            if isinstance(parsed, dict):
+                return parsed
+            raise GeminiResponseError("Gemini returned malformed structured output")
         except GeminiUnavailableError:
             raise
         except Exception as exc:

@@ -30,6 +30,24 @@ class PolicyAnalysis(BaseModel):
     ambiguity_notes: list[str]
 
 
+class PolicyAnalysisPayload(BaseModel):
+    summary: str
+    evidence_strength: Literal["strong", "moderate", "weak"]
+    ambiguity_notes: list[str]
+
+
+class PolicyVerdictPayload(BaseModel):
+    verdict: Literal[
+        "directly_related",
+        "not_directly_related",
+        "unclear",
+        "insufficient_policy_evidence",
+    ]
+    confidence: Literal["high", "medium", "low"]
+    rationale: PolicyRationale
+    cited_source_ids: list[str]
+
+
 class PolicyVerdict(BaseModel):
     verdict: Literal[
         "directly_related",
