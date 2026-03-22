@@ -50,9 +50,12 @@ Copy `.env.example` to `.env` and adjust as needed.
 - `OLLAMA_HOST`
 - `OLLAMA_MODEL`
 - `OLLAMA_TIMEOUT_SECONDS`
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL`
 - `LANGGRAPH_CHECKPOINTER_PATH`
 
-Default extraction model: `qwen3:4b-instruct`
+Default ingestion model: `qwen3:4b-instruct`
+Default reasoning model: `gemini-2.5-flash`
 Default Ollama timeout: `180` seconds
 
 ## Start Ollama
@@ -82,6 +85,12 @@ The repo now includes a deterministic timeline manager under `app/services/timel
 - it covers OPT/STEM unemployment, reporting windows, grace periods, and Cap-Gap when enough facts are present
 
 
+## LLM boundary
+
+- `Ollama` is used only for document ingestion
+- `Gemini` is used for non-ingestion reasoning, currently the policy agent
+- `timeline` and `compliance` remain deterministic
+
 ## Policy agent
 
 The repo now includes a grounded policy agent under `app/services/policy_agent/`.
@@ -89,6 +98,7 @@ The repo now includes a grounded policy agent under `app/services/policy_agent/`
 - it reads structured academic and job facts only in v1
 - it uses a local `cip_code` JSON dataset plus local policy source files
 - it uses a prebuilt local hybrid retrieval index
+- it uses Gemini for structured policy analysis and verdict generation
 - it writes structured `policy_analysis` and `policy_verdict` outputs
 
 ### Policy data and index
@@ -203,4 +213,5 @@ uv run pytest tests/unit/test_timeline_*.py tests/integration/test_timeline_mana
 uv run pytest tests/unit/test_policy_*.py tests/integration/test_policy_agent_integration.py -v
 uv run pytest tests/unit/test_compliance_*.py tests/integration/test_compliance_agent.py -v
 uv run pytest tests/unit/test_graph_*.py tests/unit/test_workflow_results.py tests/integration/test_workflow_api.py -v
+uv run pytest tests/unit/test_gemini_client.py tests/unit/test_policy_agent.py tests/integration/test_workflow_api.py -v
 ```

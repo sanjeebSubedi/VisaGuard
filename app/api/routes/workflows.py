@@ -15,8 +15,8 @@ from app.graph.adapter import build_workflow_state
 from app.graph.checkpointer import build_checkpointer
 from app.graph.nodes import run_compliance_node, run_policy_node, run_timeline_node
 from app.graph.workflow import build_compliance_workflow
-from app.services.llm.ollama_client import OllamaClientAdapter
 from app.services.policy_agent.agent import PolicyAgent
+from app.services.reasoning_llm import GeminiReasoningClient
 from app.services.workflow_results import WorkflowResultPayload, upsert_workflow_result
 
 router = APIRouter(prefix="/api/workflows", tags=["workflows"])
@@ -49,14 +49,12 @@ def run_workflow_for_user(*, session: Session, user_id: str, evaluation_date: st
     if not Path(settings.policy_index_path).exists():
         raise HTTPException(status_code=500, detail="Policy index is missing")
     policy_root = Path(settings.policy_data_root)
+    reasoning_client = GeminiReasoningClient(api_key=settings.gemini_api_key)
     policy_agent = PolicyAgent(
         index_path=Path(settings.policy_index_path),
         cip_dataset_path=policy_root / "cip_codes.json",
-        llm_client=OllamaClientAdapter(
-            host=settings.ollama_host,
-            timeout_seconds=settings.ollama_timeout_seconds,
-        ),
-        model_name=settings.ollama_model,
+        reasoning_client=reasoning_client,
+        model_name=settings.gemini_model,
     )
 
     with build_checkpointer(settings) as checkpointer:

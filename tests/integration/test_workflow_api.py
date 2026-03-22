@@ -85,6 +85,10 @@ def test_workflow_run_endpoint_persists_latest_result(client, db_session, monkey
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
+    class FakeReasoningClient:
+        def __init__(self, api_key):
+            self.api_key = api_key
+
     class FakeWorkflow:
         def invoke(self, state, config):
             assert state["extracted_data"]["cip_code"] == "11.0701"
@@ -99,6 +103,7 @@ def test_workflow_run_endpoint_persists_latest_result(client, db_session, monkey
             }
 
     monkeypatch.setattr(workflow_routes, "PolicyAgent", FakePolicyAgent)
+    monkeypatch.setattr(workflow_routes, "GeminiReasoningClient", FakeReasoningClient)
     monkeypatch.setattr(workflow_routes, "build_checkpointer", lambda settings: nullcontext(object()))
     monkeypatch.setattr(workflow_routes, "build_compliance_workflow", lambda **kwargs: FakeWorkflow())
 
