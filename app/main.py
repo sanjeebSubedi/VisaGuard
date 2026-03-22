@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.routes.intake import router as intake_router
+from app.api.routes.workflows import router as workflows_router
 from app.db.base import Base
 import app.db.models  # noqa: F401
 from app.db.session import build_engine
@@ -21,3 +22,4 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="VisaGuard Intake Service", lifespan=lifespan)
 app.include_router(intake_router)
+app.include_router(workflows_router)

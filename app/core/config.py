@@ -12,3 +12,4 @@ class Settings(BaseSettings):
     ollama_timeout_seconds: int = 180
     policy_data_root: str = "./data/policy"
     policy_index_path: str = "./data/policy/index/policy_index.json"
+    langgraph_checkpointer_path: str = "./langgraph.sqlite"
