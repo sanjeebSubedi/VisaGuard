@@ -80,3 +80,37 @@ def test_normalize_upstream_signals_maps_unknown_when_evidence_is_incomplete():
 
     assert evaluation.timeline_unknown is True
     assert evaluation.policy_unknown is True
+
+
+def test_not_applicable_conditional_clock_does_not_make_timeline_unknown():
+    timeline_status = TimelineStatus(
+        current_phase="opt_active",
+        clocks={
+            "opt_unemployment": ClockResult(
+                status="active",
+                relevant_dates={"card_start_date": "2026-01-01"},
+                days_remaining=40,
+                limit_days=90,
+            ),
+            "cap_gap": ClockResult(status="not_applicable"),
+        },
+        deadlines=[],
+        risk_flags=[],
+        action_items=[],
+    )
+    policy_verdict = PolicyVerdict(
+        verdict="directly_related",
+        confidence="high",
+        rationale=PolicyRationale(
+            major_match="match",
+            duty_match="match",
+            policy_basis="basis",
+            summary="summary",
+        ),
+        cited_sources=[],
+    )
+
+    evaluation = normalize_upstream_signals(timeline_status=timeline_status, policy_verdict=policy_verdict)
+
+    assert evaluation.timeline_unknown is False
+    assert evaluation.timeline_passes is True
