@@ -4,6 +4,9 @@ from typing import NotRequired, TypedDict
 
 
 class VisaGuardState(TypedDict, total=False):
+    extracted_data: dict
+    evaluation_date: str
+    user_profile: NotRequired[dict]
     cip_code: str
     original_document_paths: list[str]
     timeline_inputs: dict

@@ -37,3 +37,17 @@ def test_langgraph_state_supports_final_compliance_record():
     }
 
     assert state["final_compliance_record"]["overall_state"] == "IN_STATUS"
+
+
+def test_langgraph_state_supports_nested_workflow_inputs():
+    state: VisaGuardState = {
+        "extracted_data": {
+            "cip_code": "11.0701",
+            "major": "Computer Science",
+        },
+        "evaluation_date": "2026-03-22",
+        "user_profile": {"preferred_name": "Ada"},
+    }
+
+    assert state["extracted_data"]["cip_code"] == "11.0701"
+    assert state["evaluation_date"] == "2026-03-22"

@@ -72,3 +72,19 @@ class StudentStateSnapshot(Base):
     field_eligibility_map: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     provenance_map: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class WorkflowResult(Base):
+    __tablename__ = "workflow_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    evaluation_date: Mapped[str] = mapped_column(String, nullable=False)
+    timeline_status: Mapped[dict] = mapped_column(JSON, nullable=False)
+    policy_analysis: Mapped[dict] = mapped_column(JSON, nullable=False)
+    policy_verdict: Mapped[dict] = mapped_column(JSON, nullable=False)
+    final_compliance_record: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
