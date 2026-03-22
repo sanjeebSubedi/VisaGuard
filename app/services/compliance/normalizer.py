@@ -10,7 +10,10 @@ def normalize_upstream_signals(*, timeline_status: TimelineStatus | None, policy
     timeline_grace_period_active = bool(timeline_status and timeline_status.current_phase == "grace_period")
     timeline_cap_gap_active = bool(timeline_status and timeline_status.current_phase == "cap_gap")
     timeline_violation = _timeline_violation(timeline_status)
-    timeline_warning_active = bool(timeline_status and timeline_status.risk_flags)
+    timeline_warning_active = bool(
+        timeline_status
+        and (timeline_status.risk_flags or timeline_status.action_items)
+    )
     timeline_passes = bool(
         timeline_status
         and not timeline_unknown

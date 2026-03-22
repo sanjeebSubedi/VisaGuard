@@ -116,6 +116,15 @@ build_policy_index(
 PYCMD
 ```
 
+## Compliance agent
+
+The repo now includes a deterministic compliance agent under `app/services/compliance/`.
+
+- it reads only `timeline_status` and `policy_verdict`
+- it normalizes those upstream outputs into internal pass/fail/unknown flags
+- it applies a pessimistic decision matrix where the worst legally relevant condition wins
+- it writes a strict `final_compliance_record` with `overall_state`, `severity`, `action_plan`, and `audit_summary`
+
 ## Upload examples
 
 ```bash
@@ -171,4 +180,5 @@ uv run pytest tests/integration -v
 uv run pytest tests/unit -v && uv run pytest tests/integration -v
 uv run pytest tests/unit/test_timeline_*.py tests/integration/test_timeline_manager.py -v
 uv run pytest tests/unit/test_policy_*.py tests/integration/test_policy_agent_integration.py -v
+uv run pytest tests/unit/test_compliance_*.py tests/integration/test_compliance_agent.py -v
 ```
