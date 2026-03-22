@@ -10,5 +10,6 @@ class VisaGuardState(TypedDict, total=False):
     timeline_status: dict
     policy_analysis: NotRequired[dict]
     policy_verdict: NotRequired[dict]
+    final_compliance_record: NotRequired[dict]
     compliance_state: NotRequired[dict]
     action_plans: NotRequired[list[dict]]

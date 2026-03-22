@@ -24,3 +24,16 @@ def test_langgraph_state_supports_policy_outputs():
     }
 
     assert state["policy_verdict"]["verdict"] == "directly_related"
+
+
+def test_langgraph_state_supports_final_compliance_record():
+    state: VisaGuardState = {
+        "final_compliance_record": {
+            "overall_state": "IN_STATUS",
+            "severity": "INFO",
+            "action_plan": [],
+            "audit_summary": "Everything is currently compliant.",
+        }
+    }
+
+    assert state["final_compliance_record"]["overall_state"] == "IN_STATUS"
