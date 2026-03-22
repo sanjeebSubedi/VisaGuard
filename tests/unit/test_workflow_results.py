@@ -33,10 +33,10 @@ def test_upsert_workflow_result_replaces_latest_result(db_session):
     assert row.evaluation_date == "2026-03-23"
     assert row.timeline_status["current_phase"] == "grace_period"
     assert row.final_compliance_record["overall_state"] == "UNKNOWN"
+    assert row.policy_verdict["verdict"] == "unclear"
 
 
 def select_from_latest_result():
     from app.db.models import WorkflowResult
 
     return select(WorkflowResult).where(WorkflowResult.user_id == "student-1")
-
