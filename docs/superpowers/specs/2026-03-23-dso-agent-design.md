@@ -60,7 +60,7 @@ This slice introduces a separate LangGraph conversational RAG workflow that:
 
 ## High-Level Architecture
 
-The DSO Copilot is a separate LangGraph application that runs in parallel to the evaluation engine and shares the same application database.
+The DSO Copilot is a separate LangGraph application that runs in parallel to the evaluation engine and shares the same application database. This slice explicitly introduces a new DSO-specific retrieval subsystem rather than assuming the existing policy-agent JSON index can be reused unchanged.
 
 ### Read-Only Context Triad
 
@@ -78,9 +78,9 @@ Each turn is grounded in three sources of truth:
    - CIP code definitions
 3. **University knowledge base** in ChromaDB:
    - curated markdown handbook/process documents for one university in v1
-   - tagged for later `university_id` filtering, even if only one school is loaded initially
+   - tagged with a stable knowledge-base school key for later multi-university filtering
 
-The student state is loaded directly from the app DB, not vectorized.
+The student state is loaded directly from the app DB, not vectorized. In v1, the runtime school resolver should use `school_name` from the snapshot payload as the source of truth and map it deterministically to the knowledge-base school key. A future slice may add a first-class `university_id` field to persisted student state, but this spec does not require that schema change.
 
 ### Graph Shape
 
@@ -103,14 +103,27 @@ Each chat turn should accept:
 
 `chat_history` should be recent-turn context only. The system should not rely on hidden long-term memory in this slice.
 
+Recommended request typing:
+
+- `user_id: str`
+- `message: str`
+- `chat_history: list[ChatTurn]`
+
+Where `ChatTurn` contains:
+
+- `role: "user" | "assistant"`
+- `content: str`
+
 ## Student State Loading
 
 The `state_loader` should read the student's latest saved workflow result and any lightweight profile metadata needed for retrieval filtering, such as:
 
-- `university_id`
+- `school_name`
 - latest `timeline_status`
 - latest `policy_verdict`
 - latest `final_compliance_record`
+
+If the implementation later introduces a persisted `university_id`, the loader may pass it through, but v1 should not depend on it.
 
 If the student state cannot be loaded, the request should fail clearly rather than improvising a personalized answer.
 
@@ -149,7 +162,7 @@ Each chunk should carry metadata sufficient for filtering and citation, such as:
 - `title`
 - `citation`
 - `topic`
-- `university_id` (for university docs)
+- `school_key` (for university docs; deterministic internal identifier)
 - source path / stable document identifier
 
 ## Retrieval Strategy
@@ -158,6 +171,8 @@ The DSO agent should use hybrid retrieval:
 
 - vector retrieval through ChromaDB
 - lexical retrieval / reranking for exact-phrase matching
+
+Implementation note: this slice should introduce a dedicated DSO corpus builder/indexer and Chroma collection lifecycle for the chat corpus. The existing policy-agent JSON index is a useful reference for scoring and metadata shape, but it is not the storage backend for this agent.
 
 Hybrid retrieval is important because student questions often mix exact institutional terms (for example, `travel signature`) with fuzzy natural-language intent.
 
@@ -201,12 +216,21 @@ The response should include at least:
 - `needs_human_escalation`
 - `answer_mode`
 
-Recommended `answer_mode` values:
+Recommended response typing:
 
-- `personalized`
-- `general_policy`
-- `school_procedure`
-- `cautious_fallback`
+- `answer: str`
+- `citations: list[DSOCitation]`
+- `confidence: "high" | "medium" | "low"`
+- `needs_human_escalation: bool`
+- `answer_mode: "personalized_status" | "general_policy" | "school_procedure" | "escalation_sensitive" | "cautious_fallback"`
+
+Where `DSOCitation` contains:
+
+- `title: str`
+- `citation: str`
+- `source_type: "federal" | "university" | "cip"`
+- `excerpt: str`
+- `score: float`
 
 ### Answer Style
 
@@ -226,6 +250,15 @@ If asked about time-based compliance, it may only quote or paraphrase numbers al
 ### High-Risk Escalation
 
 When the student appears to be out of status, near a severe violation, or asking a high-risk legal question, the response must append mandatory hardcoded escalation language advising the student to contact a human DSO or immigration attorney.
+
+The escalation note is mandatory when any of the following is true:
+
+- latest `final_compliance_record.overall_state == "OUT_OF_STATUS"`
+- latest `final_compliance_record.severity in {"CRITICAL", "VIOLATION"}`
+- the router classifies the turn as `escalation_sensitive`
+- the synthesizer reaches a cautious fallback on a high-risk immigration-status question
+
+Precedence rule: if escalation is required, the answer may still be a grounded or cautious fallback answer, but the hardcoded escalation language must be appended regardless.
 
 ### Grounding Rule
 
@@ -253,7 +286,7 @@ Request body:
 
 Response body:
 
-- structured DSO response object
+- structured DSO response object with the typed fields defined above
 
 This endpoint should not modify student state. It is a read-only advisory surface.
 
