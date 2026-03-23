@@ -80,7 +80,7 @@ Each turn is grounded in three sources of truth:
    - curated markdown handbook/process documents for one university in v1
    - tagged with a stable knowledge-base school key for later multi-university filtering
 
-The student state is loaded directly from the app DB, not vectorized. In v1, the runtime school resolver should use `school_name` from the snapshot payload as the source of truth and map it deterministically to the knowledge-base school key. A future slice may add a first-class `university_id` field to persisted student state, but this spec does not require that schema change.
+The student state is loaded directly from the app DB, not vectorized. In v1, the runtime school resolver should use `school_name` from the snapshot payload together with an explicit alias map to resolve a stable `school_key` used by the knowledge base. That alias map should live in controlled application data/config, not inside prompts. If `school_name` cannot be resolved to a supported `school_key`, the DSO agent should continue with federal retrieval only and clearly state that school-specific procedure guidance is unavailable for the current school record. A future slice may add a first-class `university_id` field to persisted student state, but this spec does not require that schema change.
 
 ### Graph Shape
 
@@ -103,7 +103,7 @@ Each chat turn should accept:
 
 `chat_history` should be recent-turn context only. The system should not rely on hidden long-term memory in this slice.
 
-Recommended request typing:
+Required request typing:
 
 - `user_id: str`
 - `message: str`
@@ -256,7 +256,18 @@ The escalation note is mandatory when any of the following is true:
 - latest `final_compliance_record.overall_state == "OUT_OF_STATUS"`
 - latest `final_compliance_record.severity in {"CRITICAL", "VIOLATION"}`
 - the router classifies the turn as `escalation_sensitive`
-- the synthesizer reaches a cautious fallback on a high-risk immigration-status question
+- the synthesizer reaches a cautious fallback on any question about status loss, travel risk while status is not clean, unauthorized employment, or other violation-sensitive topics
+
+For v1, `escalation_sensitive` should include at least:
+
+- possible out-of-status situations
+- unauthorized employment or unemployment-limit concerns
+- travel/re-entry questions when current status is not clearly clean
+- questions that ask whether the student can ignore or delay a reporting obligation
+
+Hardcoded escalation text:
+
+- `Because this may have serious immigration consequences, please contact your DSO or a qualified immigration attorney before acting on this answer.`
 
 Precedence rule: if escalation is required, the answer may still be a grounded or cautious fallback answer, but the hardcoded escalation language must be appended regardless.
 
@@ -278,15 +289,28 @@ Initial shape:
 
 - `POST /api/dso/chat`
 
-Request body:
+Request body (required):
 
-- `user_id`
-- `message`
-- `chat_history`
+- `user_id: str`
+- `message: str`
+- `chat_history: list[ChatTurn]`
 
-Response body:
+Successful response body (`200`):
 
-- structured DSO response object with the typed fields defined above
+- `answer: str`
+- `citations: list[DSOCitation]`
+- `confidence: "high" | "medium" | "low"`
+- `needs_human_escalation: bool`
+- `answer_mode: "personalized_status" | "general_policy" | "school_procedure" | "escalation_sensitive" | "cautious_fallback"`
+
+Error responses:
+
+- `404` when no student workflow/state exists for `user_id`
+  - body: `{"detail": "No workflow result found for user_id=<id>. Run the compliance workflow first."}`
+- `422` when request typing is invalid
+  - standard FastAPI validation response is acceptable
+- `503` when Gemini output is malformed or the reasoning provider is unavailable
+  - body: `{"detail": "DSO agent is temporarily unavailable. Please try again or contact your DSO."}`
 
 This endpoint should not modify student state. It is a read-only advisory surface.
 
