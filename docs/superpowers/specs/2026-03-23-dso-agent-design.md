@@ -245,7 +245,24 @@ Where `DSOCitation` contains:
 
 The DSO agent must not calculate dates, windows, or countdowns on its own.
 
-If asked about time-based compliance, it may only quote or paraphrase numbers already computed by the Timeline Manager or latest workflow result.
+If asked about time-based compliance, it may only quote or paraphrase precomputed values already present in the latest workflow result.
+
+For v1, the chat layer may rely on:
+
+- `final_compliance_record.overall_state`
+- `final_compliance_record.severity`
+- `final_compliance_record.action_plan`
+- `final_compliance_record.audit_summary`
+- `timeline_status.current_phase`
+- for any clock in `timeline_status.clocks`:
+  - `status`
+  - `days_remaining`
+  - `limit_days`
+  - `relevant_dates`
+- `timeline_status.deadlines`
+- `timeline_status.action_items`
+
+If the needed number or date is not already present in those fields, the DSO agent must not derive it. It should answer cautiously and direct the student to rerun the workflow or contact the DSO if needed.
 
 ### High-Risk Escalation
 
@@ -314,6 +331,12 @@ Error responses:
 
 This endpoint should not modify student state. It is a read-only advisory surface.
 
+### Ownership / Access Constraint
+
+The current frontend is still in dev-mode and passes a selected `user_id` directly. Because there is no real authentication layer yet, this endpoint should be treated as a trusted local/dev surface only in v1 and must not be exposed as a public multi-user production endpoint.
+
+When authentication is added later, the endpoint should bind to the authenticated user and either ignore client-supplied `user_id` entirely or verify ownership before loading student state.
+
 ## Persistence Model
 
 This slice does not require long-term chat memory.
@@ -326,6 +349,15 @@ The system may log request/response traces for debugging and audit, but the core
 - retrieved corpus context
 
 If trace persistence is added, it should be separate from the canonical compliance data.
+
+### Trace Safety Requirements
+
+If traces are stored in v1, they must follow these minimum constraints:
+
+- store only redacted chat content and redacted retrieved excerpts where possible
+- do not persist raw uploaded documents or raw retained-text artifacts through the chat trace path
+- keep trace access restricted to internal debugging/ops surfaces
+- apply a bounded retention policy, with 30 days as the default recommendation
 
 ## Error Handling
 
