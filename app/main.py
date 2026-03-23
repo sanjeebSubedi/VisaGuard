@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes.dso import router as dso_router
 from app.api.routes.intake import router as intake_router
 from app.api.routes.workflows import router as workflows_router
 from app.db.base import Base
@@ -30,4 +31,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(intake_router)
+app.include_router(dso_router)
 app.include_router(workflows_router)

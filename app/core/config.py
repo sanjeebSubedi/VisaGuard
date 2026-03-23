@@ -14,4 +14,6 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     policy_data_root: str = "./data/policy"
     policy_index_path: str = "./data/policy/index/policy_index.json"
+    dso_index_path: str = "./data/dso/index"
+    dso_school_aliases_path: str = "./app/services/dso_agent/data/school_aliases.json"
     langgraph_checkpointer_path: str = "./langgraph.sqlite"
