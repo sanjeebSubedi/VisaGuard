@@ -30,16 +30,16 @@ export function IntakePage({
 }: IntakePageProps) {
   return (
     <div className="space-y-6">
-      <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-900">Document intake</h1>
-        <p className="mt-2 text-sm text-slate-600">
+      <section className="rounded-3xl border border-slate-800 bg-slate-900/95 p-8 shadow-xl shadow-slate-950/30">
+        <h1 className="text-2xl font-semibold text-slate-50">Document intake</h1>
+        <p className="mt-2 text-sm text-slate-400">
           Upload your I-20 and offer letter, or enter your EAD details manually.
         </p>
       </section>
 
-      {uploadMessage ? <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{uploadMessage}</p> : null}
-      {eadMessage ? <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{eadMessage}</p> : null}
-      {errorMessage ? <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p> : null}
+      {uploadMessage ? <p className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{uploadMessage}</p> : null}
+      {eadMessage ? <p className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{eadMessage}</p> : null}
+      {errorMessage ? <p className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{errorMessage}</p> : null}
 
       <div className="grid gap-6 xl:grid-cols-2">
         <UploadDocumentForm

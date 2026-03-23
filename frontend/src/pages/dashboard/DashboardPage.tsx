@@ -40,11 +40,11 @@ export function DashboardPage({
     <div className="space-y-6">
       <WorkflowRunControl isRunning={isRunningWorkflow} onRun={onRunWorkflow} />
       {errorMessage ? (
-        <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>
+        <p className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{errorMessage}</p>
       ) : null}
       {!finalRecord ? <DashboardEmptyState /> : <HeroStatusCard record={finalRecord} />}
       {finalRecord ? <ActionCenter actions={finalRecord.action_plan ?? []} /> : null}
-      {finalRecord ? <ComplianceClockList clocks={clocks} /> : null}
+      {finalRecord ? <ComplianceClockList clocks={clocks} evaluationDate={workflowResult?.evaluation_date} /> : null}
       <DocumentSummaryCard snapshot={snapshot} workflowResult={workflowResult} />
     </div>
   )

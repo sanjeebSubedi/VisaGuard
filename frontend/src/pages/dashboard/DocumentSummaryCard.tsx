@@ -43,11 +43,11 @@ export function DocumentSummaryCard({ snapshot, workflowResult }: DocumentSummar
   const items = buildSummaryItems(snapshot)
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-3xl border border-slate-800 bg-slate-900/95 p-6 shadow-xl shadow-slate-950/30">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Document and workflow summary</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="text-lg font-semibold text-slate-50">Document and workflow summary</h2>
+          <p className="mt-1 text-sm text-slate-400">
             Keep your intake current, then rerun the evaluation anytime your situation changes.
           </p>
         </div>
@@ -58,12 +58,12 @@ export function DocumentSummaryCard({ snapshot, workflowResult }: DocumentSummar
 
       <div className="mt-5 grid gap-4 md:grid-cols-3">
         {items.map((item) => (
-          <article key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <article key={item.label} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-slate-900">{item.label}</h3>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">{item.status}</span>
+              <h3 className="text-sm font-semibold text-slate-100">{item.label}</h3>
+              <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-medium text-slate-300">{item.status}</span>
             </div>
-            <p className="mt-3 text-sm text-slate-600">{item.detail}</p>
+            <p className="mt-3 text-sm text-slate-400">{item.detail}</p>
           </article>
         ))}
       </div>

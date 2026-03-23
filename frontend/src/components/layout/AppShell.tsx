@@ -8,21 +8,23 @@ import { useUserId } from '@/state/use-user-id'
 
 const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
   [
-    'rounded-full px-4 py-2 text-sm font-medium transition',
-    isActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+    'rounded-full border px-4 py-2 text-sm font-medium transition',
+    isActive
+      ? 'border-sky-400/60 bg-sky-500/20 text-sky-100'
+      : 'border-slate-800 bg-slate-900/80 text-slate-400 hover:border-slate-700 hover:bg-slate-800 hover:text-slate-100',
   ].join(' ')
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { userId, setUserId } = useUserId()
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <header className="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
             <div>
-              <h1 className="text-2xl font-semibold text-slate-900">VisaGuard</h1>
-              <p className="text-sm text-slate-600">Student compliance dashboard</p>
+              <h1 className="text-2xl font-semibold text-slate-50">VisaGuard</h1>
+              <p className="text-sm text-slate-400">Student compliance dashboard</p>
             </div>
 
             <nav className="flex items-center gap-2" aria-label="Primary">
@@ -36,14 +38,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex min-w-[16rem] flex-col gap-1">
-            <label htmlFor="user-id" className="text-sm font-medium text-slate-700">
+            <label htmlFor="user-id" className="text-sm font-medium text-slate-300">
               User ID
             </label>
             <input
               id="user-id"
               value={userId}
               onChange={(event) => setUserId(event.target.value)}
-              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-0"
+              className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none ring-0 placeholder:text-slate-500 focus:border-sky-500"
             />
           </div>
         </div>
@@ -55,7 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <DisabledChatSidebar />
         </div>
       </div>
-      <Toaster position="top-right" richColors />
+      <Toaster position="top-right" richColors theme="dark" />
     </div>
   )
 }
