@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 
+import { DSOChatSidebar } from '@/components/chat/DSOChatSidebar'
 import { DisabledChatSidebar } from '@/components/chat/DisabledChatSidebar'
 import { useUserId } from '@/state/use-user-id'
 
@@ -16,6 +17,8 @@ const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { userId, setUserId } = useUserId()
+  const location = useLocation()
+  const showLiveChat = location.pathname === '/'
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -54,7 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <main className="min-w-0">{children}</main>
         <div className="lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
-          <DisabledChatSidebar />
+          {showLiveChat ? <DSOChatSidebar userId={userId} /> : <DisabledChatSidebar />}
         </div>
       </div>
       <Toaster position="top-right" richColors theme="dark" />

@@ -35,6 +35,7 @@ export type WorkflowRunResponse = {
     severity?: string
     action_plan?: string[]
     audit_summary?: string
+    confidence_points?: string[]
   }
   timeline_status?: Record<string, unknown>
   policy_verdict?: Record<string, unknown>
@@ -52,4 +53,32 @@ export type SnapshotResponse = {
   snapshot_payload: Record<string, unknown>
   field_eligibility_map: Record<string, unknown>
   provenance_map: Record<string, unknown>
+}
+
+
+export type DSOChatTurn = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export type DSOCitation = {
+  title: string
+  citation: string
+  source_type: 'federal' | 'university' | 'cip'
+  excerpt: string
+  score: number
+}
+
+export type DSOChatRequest = {
+  userId: string
+  message: string
+  chatHistory: DSOChatTurn[]
+}
+
+export type DSOChatResponse = {
+  answer: string
+  citations: DSOCitation[]
+  confidence: string
+  needs_human_escalation: boolean
+  answer_mode: string
 }

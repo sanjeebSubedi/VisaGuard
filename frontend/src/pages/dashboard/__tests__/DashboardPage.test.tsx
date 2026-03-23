@@ -73,7 +73,8 @@ describe('DashboardRoute', () => {
       final_compliance_record: {
         overall_state: 'IN_STATUS',
         severity: 'INFO',
-        audit_summary: '52 days remaining on the OPT unemployment clock.',
+        audit_summary: 'Your role is directly related to your major, and your timeline is well within the standard OPT limits.',
+        confidence_points: ['52 days remaining on OPT', 'Job directly relates to your major'],
         action_plan: ['Report any employer change within 10 days'],
       },
       timeline_status: {
@@ -105,6 +106,7 @@ describe('DashboardRoute', () => {
 
     expect(await screen.findByText(/in status/i)).toBeInTheDocument()
     expect(screen.getByText(/report any employer change within 10 days/i)).toBeInTheDocument()
+    expect(screen.getByText(/52 days remaining on opt/i)).toBeInTheDocument()
     expect(screen.getByText(/38 of 90 days used/i)).toBeInTheDocument()
     expect(screen.getByText(/latest evaluation: 2026-03-22/i)).toBeInTheDocument()
     expect(screen.getByText(/manual entry/i)).toBeInTheDocument()

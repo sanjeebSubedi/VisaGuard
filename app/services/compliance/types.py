@@ -23,3 +23,4 @@ class FinalComplianceRecord(BaseModel):
     severity: Literal["INFO", "WARNING", "CRITICAL", "VIOLATION"]
     action_plan: list[str] = Field(default_factory=list)
     audit_summary: str
+    confidence_points: list[str] = Field(default_factory=list)

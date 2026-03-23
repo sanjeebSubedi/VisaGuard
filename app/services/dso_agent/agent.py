@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
+from typing import Literal
 
 from app.services.dso_agent.guardrails import apply_guardrails
 from app.services.dso_agent.types import DSOCitation, DSOResponse
@@ -12,9 +13,15 @@ from app.services.dso_agent.types import DSOCitation, DSOResponse
 class DSOResponsePayload(BaseModel):
     answer: str
     citations: list[DSOCitation]
-    confidence: str
+    confidence: Literal['high', 'medium', 'low']
     needs_human_escalation: bool
-    answer_mode: str
+    answer_mode: Literal[
+        'personalized_status',
+        'general_policy',
+        'school_procedure',
+        'escalation_sensitive',
+        'cautious_fallback',
+    ]
 
 
 class DSOUnavailableError(RuntimeError):

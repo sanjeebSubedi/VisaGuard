@@ -1,4 +1,6 @@
-from app.services.dso_agent.agent import synthesize_answer
+import pytest
+
+from app.services.dso_agent.agent import DSOResponsePayload, synthesize_answer
 
 
 class FakeReasoningClient:
@@ -115,3 +117,16 @@ def test_synthesize_answer_uses_federal_guidance_when_supported_school_has_no_lo
         university_match_found=False,
     )
     assert "school-specific steps may differ" in response.answer.lower()
+
+
+def test_dso_response_payload_rejects_noncanonical_enum_values():
+    with pytest.raises(Exception):
+        DSOResponsePayload.model_validate(
+            {
+                "answer": "Yes.",
+                "citations": [],
+                "confidence": "High",
+                "needs_human_escalation": False,
+                "answer_mode": "General Policy",
+            }
+        )

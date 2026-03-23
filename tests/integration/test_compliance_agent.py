@@ -45,6 +45,8 @@ def test_compliance_agent_writes_final_compliance_record_into_state():
 
     assert state["final_compliance_record"]["overall_state"] == "IN_STATUS"
     assert state["final_compliance_record"]["severity"] == "WARNING"
+    assert state["final_compliance_record"]["audit_summary"] == "Your job is directly related to your major, and your timeline is well within the standard OPT limits."
+    assert state["final_compliance_record"]["confidence_points"] == ["5 days remaining on OPT", "Job directly relates to your major"]
     assert "Report employer to SEVP by 2026-06-25" in state["final_compliance_record"]["action_plan"]
 
 

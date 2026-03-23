@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.services.compliance.actions import compose_action_plan
-from app.services.compliance.audit import build_audit_summary
+from app.services.compliance.audit import build_audit_summary, build_confidence_points
 from app.services.compliance.decision_matrix import determine_overall_state
 from app.services.compliance.normalizer import normalize_upstream_signals
 from app.services.compliance.severity import determine_severity
@@ -30,12 +30,17 @@ def evaluate_compliance_state(state: dict[str, object]) -> dict[str, object]:
         timeline_status=timeline_status,
         policy_verdict=policy_verdict,
     )
+    confidence_points = build_confidence_points(
+        timeline_status=timeline_status,
+        policy_verdict=policy_verdict,
+    )
 
     record = FinalComplianceRecord(
         overall_state=overall_state,
         severity=severity,
         action_plan=action_plan,
         audit_summary=audit_summary,
+        confidence_points=confidence_points,
     )
 
     updated_state = dict(state)
