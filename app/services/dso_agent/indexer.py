@@ -8,6 +8,7 @@ from pathlib import Path
 
 import chromadb
 
+from app.core.config import Settings
 from app.services.dso_agent.corpus import load_dso_sources
 
 COLLECTION_NAME = 'dso_corpus'
@@ -62,3 +63,17 @@ def _embed_text(text: str) -> list[float]:
         vector[idx] += 1.0
     norm = math.sqrt(sum(value * value for value in vector)) or 1.0
     return [value / norm for value in vector]
+
+
+
+def main() -> None:
+    settings = Settings()
+    build_dso_index(
+        federal_sources_dir=Path("./data/dso/federal"),
+        university_sources_root=Path("./data/dso/universities"),
+        persist_directory=Path(settings.dso_index_path),
+    )
+
+
+if __name__ == "__main__":
+    main()

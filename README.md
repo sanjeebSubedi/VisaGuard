@@ -237,3 +237,22 @@ uv run pytest tests/unit/test_gemini_client.py tests/unit/test_policy_agent.py t
 cd frontend && npm test
 cd frontend && npm run build
 ```
+
+
+## DSO Agent
+
+Build the DSO index:
+
+```bash
+uv run python -m app.services.dso_agent.indexer
+```
+
+Call the API:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/dso/chat \
+  -H "Content-Type: application/json" \
+  -d "{\"user_id\": \"user0\", \"message\": \"Can I work two jobs on OPT?\", \"chat_history\": []}"
+```
+
+This endpoint is dev-only right now because the app still uses direct `user_id` selection instead of auth.
