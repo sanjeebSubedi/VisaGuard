@@ -17,7 +17,7 @@ export function HeroStatusCard({ record }: HeroStatusCardProps) {
   return (
     <section data-testid="hero-status-card" className={`rounded-3xl p-8 shadow-sm ${tone}`}>
       <p className="text-sm font-medium uppercase tracking-[0.2em] opacity-90">Current status</p>
-      <h2 className="mt-3 text-4xl font-bold">{record.overall_state.replaceAll('_', ' ')}</h2>
+      <h2 className="mt-3 text-4xl font-bold">{record.overall_state.replace(/_/g, ' ')}</h2>
       <p className="mt-4 max-w-3xl text-sm leading-6 opacity-95">{record.audit_summary}</p>
     </section>
   )

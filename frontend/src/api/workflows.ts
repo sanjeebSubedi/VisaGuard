@@ -1,5 +1,5 @@
 import { apiRequest } from '@/api/client'
-import type { WorkflowRunInput, WorkflowRunResponse } from '@/api/types'
+import type { WorkflowResultResponse, WorkflowRunInput, WorkflowRunResponse } from '@/api/types'
 
 export const WORKFLOW_RUN_TIMEOUT_MS = 30000
 
@@ -15,4 +15,8 @@ export function runComplianceWorkflow(input: WorkflowRunInput) {
     }),
     timeoutMs: WORKFLOW_RUN_TIMEOUT_MS,
   })
+}
+
+export function getLatestWorkflowResult(userId: string) {
+  return apiRequest<WorkflowResultResponse>(`/api/workflows/compliance/users/${userId}/latest`)
 }

@@ -1,13 +1,16 @@
+import { AppProviders } from '@/app/providers'
+import { AppRoutes } from '@/app/routes'
 import { AppShell } from '@/components/layout/AppShell'
-import { DashboardPage } from '@/pages/dashboard/DashboardPage'
 import { UserProvider } from '@/state/user-context'
 
 export function App() {
   return (
-    <UserProvider>
-      <AppShell>
-        <DashboardPage />
-      </AppShell>
-    </UserProvider>
+    <AppProviders>
+      <UserProvider>
+        <AppShell>
+          <AppRoutes />
+        </AppShell>
+      </UserProvider>
+    </AppProviders>
   )
 }

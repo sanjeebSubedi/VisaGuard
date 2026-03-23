@@ -1,5 +1,5 @@
 import { apiRequest } from '@/api/client'
-import type { DocumentResponse, ManualEadEntryInput, UploadDocumentInput } from '@/api/types'
+import type { DocumentResponse, ManualEadEntryInput, SnapshotResponse, UploadDocumentInput } from '@/api/types'
 
 export function uploadDocument(input: UploadDocumentInput) {
   const formData = new FormData()
@@ -28,4 +28,8 @@ export function createManualEadEntry(input: ManualEadEntryInput) {
       card_number: input.cardNumber,
     }),
   })
+}
+
+export function getSnapshot(userId: string) {
+  return apiRequest<SnapshotResponse>(`/api/intake/users/${userId}/snapshot`)
 }
