@@ -103,11 +103,18 @@ Rendering rules:
 
 For each active clock, show:
 - a human-friendly clock label
-- a progress bar
+- a progress visualization appropriate to the clock type
 - a label like `38 of 90 days used (52 days remaining)`
 
 Progress math:
-- `(limit_days - days_remaining) / limit_days` for used amount
+- if `limit_days` is present, use `(limit_days - days_remaining) / limit_days` for used amount
+- if `limit_days` is `null`, do not use the same capacity-bar math blindly
+- for fixed-window clocks such as grace periods, either:
+  - compute the denominator from the total days between the clock's effective start and end dates, or
+  - render a different visualization such as a calendar-style countdown row
+
+Implementation note:
+- the `ComplianceClockList` component must branch on whether `limit_days` is present rather than assuming every active clock represents a drawdown bank
 
 #### Zone 4: Document and Workflow Summary
 A compact supporting section on the dashboard should show:
@@ -124,6 +131,10 @@ Behavior:
 - show a welcome/placeholder message
 - input and send button are visibly disabled
 - include a short explanation that the DSO Copilot is coming soon
+- if the user clicks the disabled input area, show a lightweight toast or inline notice explaining that the feature is currently gated / coming soon
+
+Suggested copy:
+- `The DSO Copilot is currently in beta and will be unlocked for your account soon.`
 
 The sidebar should look intentionally unavailable, not broken.
 
@@ -178,6 +189,11 @@ Expected behavior:
 - the UI shows a loading state while the workflow is in progress
 - duplicate runs are prevented while a request is active
 - when the response returns, the dashboard updates immediately from the returned state
+
+Timeout requirement:
+- the typed API client should use a generous timeout for `POST /api/workflows/compliance/run`
+- recommended initial timeout: `30000ms`
+- the frontend must prefer a long-running loading state over a misleading client-side timeout while the backend workflow is still executing
 
 ## State Model in the Frontend
 
@@ -287,7 +303,8 @@ Cover:
 - severity rendering for the hero card
 - action center empty and non-empty states
 - active clock filtering and progress calculations
-- disabled chat sidebar behavior
+- special rendering behavior when `limit_days` is `null`
+- disabled chat sidebar behavior, including the gated-feature notice interaction
 
 ### API Client Tests
 Cover:
