@@ -75,6 +75,25 @@ uv run --with uvicorn uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 The app now initializes database tables on startup, so a clean local run does not need a separate bootstrap command.
 
+
+## Frontend app
+
+The repo now includes a student-facing React + Vite frontend under `frontend/`.
+
+- `/` shows the compliance dashboard with status, actions, clocks, and workflow summary
+- `/intake` handles I-20 / offer-letter uploads plus manual EAD entry
+- the DSO Copilot sidebar is present but intentionally disabled in this slice
+
+Run the frontend locally with:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+By default the frontend targets `http://127.0.0.1:8000`. Override it with `VITE_API_BASE_URL` if needed.
+
 ## Timeline manager
 
 The repo now includes a deterministic timeline manager under `app/services/timeline/`.
@@ -201,6 +220,7 @@ curl -X POST http://127.0.0.1:8000/api/intake/ead/manual \
 ```bash
 curl http://127.0.0.1:8000/api/intake/users/student-1/snapshot
 curl http://127.0.0.1:8000/api/intake/users/student-1/review-items
+curl http://127.0.0.1:8000/api/workflows/compliance/users/student-1/latest
 ```
 
 ## Test commands
@@ -214,4 +234,6 @@ uv run pytest tests/unit/test_policy_*.py tests/integration/test_policy_agent_in
 uv run pytest tests/unit/test_compliance_*.py tests/integration/test_compliance_agent.py -v
 uv run pytest tests/unit/test_graph_*.py tests/unit/test_workflow_results.py tests/integration/test_workflow_api.py -v
 uv run pytest tests/unit/test_gemini_client.py tests/unit/test_policy_agent.py tests/integration/test_workflow_api.py -v
+cd frontend && npm test
+cd frontend && npm run build
 ```
