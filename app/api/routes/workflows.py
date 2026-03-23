@@ -7,9 +7,9 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.schemas.workflows import WorkflowRunRequest
+from app.api.schemas.workflows import WorkflowResultResponse, WorkflowRunRequest
 from app.core.config import Settings
-from app.db.models import StudentStateSnapshot
+from app.db.models import StudentStateSnapshot, WorkflowResult
 from app.db.session import get_db_session
 from app.graph.adapter import build_workflow_state
 from app.graph.checkpointer import build_checkpointer
@@ -20,6 +20,19 @@ from app.services.reasoning_llm import GeminiReasoningClient
 from app.services.workflow_results import WorkflowResultPayload, upsert_workflow_result
 
 router = APIRouter(prefix="/api/workflows", tags=["workflows"])
+
+
+@router.get("/compliance/users/{user_id}/latest", response_model=WorkflowResultResponse)
+def get_latest_workflow_result(
+    user_id: str,
+    session: Session = Depends(get_db_session),
+) -> WorkflowResult:
+    result = session.scalar(
+        select(WorkflowResult).where(WorkflowResult.user_id == user_id)
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Workflow result not found")
+    return result
 
 
 @router.post("/compliance/run")

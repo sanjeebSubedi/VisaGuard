@@ -145,3 +145,31 @@ def test_workflow_run_endpoint_fails_when_policy_index_missing(client, db_sessio
 
     assert response.status_code == 500
     assert response.json()["detail"] == "Policy index is missing"
+
+
+def test_workflow_result_endpoint_returns_latest_result(client, db_session):
+    row = WorkflowResult(
+        user_id="student-1",
+        evaluation_date="2026-03-22",
+        timeline_status={"current_phase": "opt_active"},
+        policy_analysis={"summary": "Strong match"},
+        policy_verdict={"verdict": "directly_related"},
+        final_compliance_record={"overall_state": "IN_STATUS"},
+    )
+    db_session.add(row)
+    db_session.commit()
+
+    response = client.get("/api/workflows/compliance/users/student-1/latest")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["user_id"] == "student-1"
+    assert body["evaluation_date"] == "2026-03-22"
+    assert body["timeline_status"]["current_phase"] == "opt_active"
+    assert body["final_compliance_record"]["overall_state"] == "IN_STATUS"
+
+
+def test_workflow_result_endpoint_returns_404_when_missing(client):
+    response = client.get("/api/workflows/compliance/users/missing/latest")
+
+    assert response.status_code == 404
