@@ -8,15 +8,16 @@ DATASET_PATH = Path('data/policy/cip_codes.json')
 SOURCES_DIR = Path('data/policy/sources')
 
 
-def test_hybrid_retriever_returns_cip_and_policy_sources(tmp_path):
+def test_hybrid_retriever_returns_cip_and_policy_sources(tmp_path, fake_embedder):
     index_path = tmp_path / 'policy_index.json'
     build_policy_index(
         cip_dataset_path=DATASET_PATH,
         policy_sources_dir=SOURCES_DIR,
         output_path=index_path,
+        embedder=fake_embedder,
     )
 
-    retriever = HybridPolicyRetriever.load(index_path)
+    retriever = HybridPolicyRetriever.load(index_path, embedder=fake_embedder)
     results = retriever.search('computer science software engineering directly related major area of study', top_k=4)
 
     source_types = {result.source_type for result in results}

@@ -22,7 +22,7 @@ class FakeReasoningClient:
         return self.payload
 
 
-def test_dso_workflow_answers_personalized_status_question(db_session, tmp_path):
+def test_dso_workflow_answers_personalized_status_question(db_session, tmp_path, fake_embedder):
     db_session.add(
         WorkflowResult(
             user_id="user0",
@@ -49,14 +49,14 @@ def test_dso_workflow_answers_personalized_status_question(db_session, tmp_path)
     federal_dir.mkdir()
     (federal_dir / "opt.md").write_text("# OPT\nStudents may work in qualifying OPT employment.")
     university_root = tmp_path / "universities"
-    build_dso_index(federal_sources_dir=federal_dir, university_sources_root=university_root, persist_directory=tmp_path / "index")
+    build_dso_index(federal_sources_dir=federal_dir, university_sources_root=university_root, persist_directory=tmp_path / "index", embedder=fake_embedder)
 
     workflow = build_dso_workflow(
         state_loader_node=lambda state: run_state_loader_node(state, session=db_session),
         intent_router_node=run_intent_router_node,
         context_retriever_node=lambda state: run_context_retriever_node(
             state,
-            retriever=HybridDSORetriever.load(persist_directory=tmp_path / "index"),
+            retriever=HybridDSORetriever.load(persist_directory=tmp_path / "index", embedder=fake_embedder),
             resolver=SchoolResolver({"New York University": "nyu", "NYU": "nyu"}),
         ),
         synthesizer_node=lambda state: run_synthesizer_node(
@@ -80,7 +80,7 @@ def test_dso_workflow_answers_personalized_status_question(db_session, tmp_path)
 
 
 
-def test_dso_workflow_answers_school_procedure_question_with_university_citation(db_session, tmp_path):
+def test_dso_workflow_answers_school_procedure_question_with_university_citation(db_session, tmp_path, fake_embedder):
     db_session.add(
         WorkflowResult(
             user_id="user0",
@@ -99,14 +99,14 @@ def test_dso_workflow_answers_school_procedure_question_with_university_citation
     university_dir = tmp_path / "universities" / "nyu"
     university_dir.mkdir(parents=True)
     (university_dir / "travel_signature.md").write_text("# Travel Signature\nUse the OGS portal to request your travel signature.")
-    build_dso_index(federal_sources_dir=federal_dir, university_sources_root=tmp_path / "universities", persist_directory=tmp_path / "index")
+    build_dso_index(federal_sources_dir=federal_dir, university_sources_root=tmp_path / "universities", persist_directory=tmp_path / "index", embedder=fake_embedder)
 
     workflow = build_dso_workflow(
         state_loader_node=lambda state: run_state_loader_node(state, session=db_session),
         intent_router_node=run_intent_router_node,
         context_retriever_node=lambda state: run_context_retriever_node(
             state,
-            retriever=HybridDSORetriever.load(persist_directory=tmp_path / "index"),
+            retriever=HybridDSORetriever.load(persist_directory=tmp_path / "index", embedder=fake_embedder),
             resolver=SchoolResolver({"New York University": "nyu", "NYU": "nyu"}),
         ),
         synthesizer_node=lambda state: run_synthesizer_node(

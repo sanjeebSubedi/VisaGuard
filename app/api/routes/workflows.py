@@ -15,6 +15,7 @@ from app.graph.adapter import build_workflow_state
 from app.graph.checkpointer import build_checkpointer
 from app.graph.nodes import run_compliance_node, run_policy_node, run_timeline_node
 from app.graph.workflow import build_compliance_workflow
+from app.services.embeddings import build_embedder
 from app.services.policy_agent.agent import PolicyAgent
 from app.services.reasoning_llm import GeminiReasoningClient
 from app.services.workflow_results import WorkflowResultPayload, upsert_workflow_result
@@ -68,6 +69,7 @@ def run_workflow_for_user(*, session: Session, user_id: str, evaluation_date: st
         cip_dataset_path=policy_root / "cip_codes.json",
         reasoning_client=reasoning_client,
         model_name=settings.gemini_model,
+        embedder=build_embedder(settings),
     )
 
     with build_checkpointer(settings) as checkpointer:

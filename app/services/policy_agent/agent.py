@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from app.services.embeddings import Embedder
 from app.services.policy_agent.cip_loader import CIPDataset, CIPNotFoundError
 from app.services.policy_agent.retriever import HybridPolicyRetriever
 from app.services.policy_agent.types import (
@@ -16,8 +17,8 @@ from app.services.policy_agent.types import (
 
 
 class PolicyAgent:
-    def __init__(self, *, index_path: Path, cip_dataset_path: Path, reasoning_client: Any, model_name: str) -> None:
-        self._retriever = HybridPolicyRetriever.load(index_path)
+    def __init__(self, *, index_path: Path, cip_dataset_path: Path, reasoning_client: Any, model_name: str, embedder: Embedder) -> None:
+        self._retriever = HybridPolicyRetriever.load(index_path, embedder=embedder)
         self._cip_dataset = CIPDataset.load(cip_dataset_path)
         self._reasoning_client = reasoning_client
         self._model_name = model_name

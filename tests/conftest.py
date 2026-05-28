@@ -1,3 +1,6 @@
+import hashlib
+import math
+import re
 from collections.abc import Generator
 
 import pytest
@@ -11,6 +14,24 @@ from app.db.session import get_db_session
 from app.main import app
 from app.services.llm.extractor import LLMExtractionOutcome
 from app.services.parsing.docling_parser import ParsedDocument
+
+_FAKE_EMBED_DIMS = 64
+_FAKE_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+@pytest.fixture
+def fake_embedder():
+    """Deterministic offline stand-in for the Ollama embedder used in production."""
+
+    def embed(text: str) -> list[float]:
+        vector = [0.0] * _FAKE_EMBED_DIMS
+        for token in _FAKE_TOKEN_RE.findall(text.lower()):
+            idx = int.from_bytes(hashlib.sha256(token.encode()).digest()[:4], "big") % _FAKE_EMBED_DIMS
+            vector[idx] += 1.0
+        norm = math.sqrt(sum(value * value for value in vector)) or 1.0
+        return [value / norm for value in vector]
+
+    return embed
 
 
 @pytest.fixture

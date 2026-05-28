@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import json
-import math
 import re
 from pathlib import Path
 
+from app.services.embeddings import Embedder
 from app.services.policy_agent.cip_loader import CIPDataset
 from app.services.policy_agent.corpus import load_policy_sources
 
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
-def build_policy_index(*, cip_dataset_path: Path, policy_sources_dir: Path, output_path: Path) -> Path:
+def build_policy_index(*, cip_dataset_path: Path, policy_sources_dir: Path, output_path: Path, embedder: Embedder) -> Path:
     cip_dataset = CIPDataset.load(cip_dataset_path)
     documents = []
 
@@ -23,6 +23,7 @@ def build_policy_index(*, cip_dataset_path: Path, policy_sources_dir: Path, outp
             citation=f"CIP {entry.cip_code}",
             source_type="cip",
             text=text,
+            embedder=embedder,
         ))
 
     for source in load_policy_sources(policy_sources_dir):
@@ -32,6 +33,7 @@ def build_policy_index(*, cip_dataset_path: Path, policy_sources_dir: Path, outp
             citation=source.citation,
             source_type=source.source_type,
             text=source.text,
+            embedder=embedder,
         ))
 
     payload = {"documents": documents}
@@ -40,12 +42,11 @@ def build_policy_index(*, cip_dataset_path: Path, policy_sources_dir: Path, outp
     return output_path
 
 
-def _index_document(*, source_id: str, title: str, citation: str, source_type: str, text: str) -> dict[str, object]:
+def _index_document(*, source_id: str, title: str, citation: str, source_type: str, text: str, embedder: Embedder) -> dict[str, object]:
     tokens = _tokenize(text)
     term_freqs: dict[str, int] = {}
     for token in tokens:
         term_freqs[token] = term_freqs.get(token, 0) + 1
-    norm = math.sqrt(sum(count * count for count in term_freqs.values())) or 1.0
     return {
         "source_id": source_id,
         "title": title,
@@ -53,8 +54,7 @@ def _index_document(*, source_id: str, title: str, citation: str, source_type: s
         "source_type": source_type,
         "text": text,
         "term_freqs": term_freqs,
-        "token_count": len(tokens),
-        "norm": norm,
+        "embedding": embedder(text),
     }
 
 

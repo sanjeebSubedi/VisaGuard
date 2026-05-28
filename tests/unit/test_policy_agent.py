@@ -22,9 +22,9 @@ class StubReasoningClient:
         return self._responses.pop(0)
 
 
-def test_policy_agent_generates_analysis_and_verdict(tmp_path):
+def test_policy_agent_generates_analysis_and_verdict(tmp_path, fake_embedder):
     index_path = tmp_path / 'policy_index.json'
-    build_policy_index(cip_dataset_path=DATASET_PATH, policy_sources_dir=SOURCES_DIR, output_path=index_path)
+    build_policy_index(cip_dataset_path=DATASET_PATH, policy_sources_dir=SOURCES_DIR, output_path=index_path, embedder=fake_embedder)
     llm = StubReasoningClient(
         [
             {"summary": "The duties align with computer science training.", "evidence_strength": "strong", "ambiguity_notes": []},
@@ -32,7 +32,7 @@ def test_policy_agent_generates_analysis_and_verdict(tmp_path):
         ]
     )
 
-    agent = PolicyAgent(index_path=index_path, cip_dataset_path=DATASET_PATH, reasoning_client=llm, model_name='test-model')
+    agent = PolicyAgent(index_path=index_path, cip_dataset_path=DATASET_PATH, reasoning_client=llm, model_name='test-model', embedder=fake_embedder)
     result = agent.evaluate(
         {
             'cip_code': '11.0701',
@@ -51,11 +51,11 @@ def test_policy_agent_generates_analysis_and_verdict(tmp_path):
     ]
 
 
-def test_policy_agent_returns_insufficient_evidence_for_unknown_cip(tmp_path):
+def test_policy_agent_returns_insufficient_evidence_for_unknown_cip(tmp_path, fake_embedder):
     index_path = tmp_path / 'policy_index.json'
-    build_policy_index(cip_dataset_path=DATASET_PATH, policy_sources_dir=SOURCES_DIR, output_path=index_path)
+    build_policy_index(cip_dataset_path=DATASET_PATH, policy_sources_dir=SOURCES_DIR, output_path=index_path, embedder=fake_embedder)
 
-    agent = PolicyAgent(index_path=index_path, cip_dataset_path=DATASET_PATH, reasoning_client=StubReasoningClient([]), model_name='test-model')
+    agent = PolicyAgent(index_path=index_path, cip_dataset_path=DATASET_PATH, reasoning_client=StubReasoningClient([]), model_name='test-model', embedder=fake_embedder)
     result = agent.evaluate(
         {
             'cip_code': '99.9999',
@@ -69,9 +69,9 @@ def test_policy_agent_returns_insufficient_evidence_for_unknown_cip(tmp_path):
     assert result['policy_verdict'].confidence == 'low'
 
 
-def test_policy_agent_filters_citations_to_retrieved_sources(tmp_path):
+def test_policy_agent_filters_citations_to_retrieved_sources(tmp_path, fake_embedder):
     index_path = tmp_path / 'policy_index.json'
-    build_policy_index(cip_dataset_path=DATASET_PATH, policy_sources_dir=SOURCES_DIR, output_path=index_path)
+    build_policy_index(cip_dataset_path=DATASET_PATH, policy_sources_dir=SOURCES_DIR, output_path=index_path, embedder=fake_embedder)
     llm = StubReasoningClient(
         [
             {"summary": "The duties align with computer science training.", "evidence_strength": "strong", "ambiguity_notes": []},
@@ -79,7 +79,7 @@ def test_policy_agent_filters_citations_to_retrieved_sources(tmp_path):
         ]
     )
 
-    agent = PolicyAgent(index_path=index_path, cip_dataset_path=DATASET_PATH, reasoning_client=llm, model_name='test-model')
+    agent = PolicyAgent(index_path=index_path, cip_dataset_path=DATASET_PATH, reasoning_client=llm, model_name='test-model', embedder=fake_embedder)
     result = agent.evaluate(
         {
             'cip_code': '11.0701',
@@ -92,9 +92,9 @@ def test_policy_agent_filters_citations_to_retrieved_sources(tmp_path):
     assert [source.source_id for source in result['policy_verdict'].cited_sources] == ['cip-11.0701']
 
 
-def test_policy_agent_raises_when_rationale_shape_is_invalid(tmp_path):
+def test_policy_agent_raises_when_rationale_shape_is_invalid(tmp_path, fake_embedder):
     index_path = tmp_path / 'policy_index.json'
-    build_policy_index(cip_dataset_path=DATASET_PATH, policy_sources_dir=SOURCES_DIR, output_path=index_path)
+    build_policy_index(cip_dataset_path=DATASET_PATH, policy_sources_dir=SOURCES_DIR, output_path=index_path, embedder=fake_embedder)
     llm = StubReasoningClient(
         [
             {"summary": "The duties align with computer science training.", "evidence_strength": "strong", "ambiguity_notes": []},
@@ -102,7 +102,7 @@ def test_policy_agent_raises_when_rationale_shape_is_invalid(tmp_path):
         ]
     )
 
-    agent = PolicyAgent(index_path=index_path, cip_dataset_path=DATASET_PATH, reasoning_client=llm, model_name='test-model')
+    agent = PolicyAgent(index_path=index_path, cip_dataset_path=DATASET_PATH, reasoning_client=llm, model_name='test-model', embedder=fake_embedder)
 
     with pytest.raises(TypeError):
         agent.evaluate(

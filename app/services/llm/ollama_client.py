@@ -20,3 +20,10 @@ class OllamaClientAdapter:
         except Exception as exc:
             raise OllamaUnavailableError(str(exc)) from exc
         return response["response"]
+
+    def embed(self, *, model: str, text: str) -> list[float]:
+        try:
+            response = self._client.embeddings(model=model, prompt=text)
+        except Exception as exc:
+            raise OllamaUnavailableError(str(exc)) from exc
+        return [float(value) for value in response["embedding"]]

@@ -17,6 +17,7 @@ from app.graph.dso_nodes import (
 from app.graph.dso_workflow import build_dso_workflow
 from app.services.dso_agent.agent import DSOAgent, DSOUnavailableError
 from app.services.dso_agent.retriever import HybridDSORetriever
+from app.services.embeddings import build_embedder
 from app.services.dso_agent.school_resolver import SchoolResolver
 from app.services.dso_agent.state_loader import StudentStateNotFound, load_student_state
 from app.services.reasoning_llm import GeminiReasoningClient
@@ -50,7 +51,7 @@ def dso_chat(payload: DSOChatRequest = Body(...), session: Session = Depends(get
 def build_dso_chat_workflow(*, session: Session, settings: Settings):
     reasoning_client = GeminiReasoningClient(api_key=settings.gemini_api_key)
     agent = DSOAgent.from_prompts(reasoning_client=reasoning_client, model_name=settings.gemini_model)
-    retriever = HybridDSORetriever.load(persist_directory=Path(settings.dso_index_path))
+    retriever = HybridDSORetriever.load(persist_directory=Path(settings.dso_index_path), embedder=build_embedder(settings))
     resolver = SchoolResolver.load(Path(settings.dso_school_aliases_path))
     return build_dso_workflow(
         state_loader_node=lambda state: run_state_loader_node(state, session=session),

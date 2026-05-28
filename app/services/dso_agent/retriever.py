@@ -3,14 +3,15 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import chromadb
 
-from app.services.dso_agent.indexer import COLLECTION_NAME, EMBEDDING_DIMS
+from app.services.dso_agent.indexer import COLLECTION_NAME
 from app.services.dso_agent.types import DSOCitation
+from app.services.embeddings import Embedder
 
 TOKEN_RE = re.compile(r'[a-z0-9]+')
 
@@ -24,42 +25,38 @@ class _Document:
     school_key: str | None
     text: str
     term_freqs: dict[str, int]
-    norm: float
-    embedding_score: float = 0.0
+    embedding: list[float] = field(default_factory=list)
 
 
 class HybridDSORetriever:
-    def __init__(self, documents: list[_Document]) -> None:
+    def __init__(self, documents: list[_Document], *, embedder: Embedder) -> None:
         self._documents = documents
+        self._embedder = embedder
 
     @classmethod
-    def from_documents(cls, documents: list[dict[str, Any]]) -> 'HybridDSORetriever':
+    def from_documents(cls, documents: list[dict[str, Any]], *, embedder: Embedder) -> 'HybridDSORetriever':
         built = []
         for document in documents:
-            tokens = _tokenize(str(document['text']))
-            term_freqs: dict[str, int] = {}
-            for token in tokens:
-                term_freqs[token] = term_freqs.get(token, 0) + 1
-            norm = math.sqrt(sum(v * v for v in term_freqs.values())) or 1.0
+            text = str(document['text'])
             built.append(_Document(
                 source_id=str(document['source_id']),
                 title=str(document.get('title', document['source_id'])),
                 citation=str(document.get('citation', document['source_id'])),
                 source_type=str(document['source_type']),
                 school_key=document.get('school_key'),
-                text=str(document['text']),
-                term_freqs=term_freqs,
-                norm=norm,
+                text=text,
+                term_freqs=_term_freqs(_tokenize(text)),
+                embedding=embedder(text),
             ))
-        return cls(built)
+        return cls(built, embedder=embedder)
 
     @classmethod
-    def load(cls, *, persist_directory: Path) -> 'HybridDSORetriever':
+    def load(cls, *, persist_directory: Path, embedder: Embedder) -> 'HybridDSORetriever':
         client = chromadb.PersistentClient(path=str(persist_directory))
         collection = client.get_collection(COLLECTION_NAME)
         payload = collection.get(include=['documents', 'metadatas', 'embeddings'])
         documents: list[_Document] = []
-        for doc_id, text, meta in zip(payload['ids'], payload['documents'], payload['metadatas']):
+        for doc_id, text, meta, embedding in zip(payload['ids'], payload['documents'], payload['metadatas'], payload['embeddings']):
             documents.append(_Document(
                 source_id=str(doc_id),
                 title=str(meta['title']),
@@ -68,19 +65,19 @@ class HybridDSORetriever:
                 school_key=(str(meta.get('school_key')) or None),
                 text=str(text),
                 term_freqs=json.loads(str(meta['term_freqs_json'])),
-                norm=float(meta['norm']),
+                embedding=[float(value) for value in embedding],
             ))
-        return cls(documents)
+        return cls(documents, embedder=embedder)
 
     def search(self, query: str, *, scope: str, school_key: str | None, top_k: int = 5) -> list[DSOCitation]:
         query_terms = _term_freqs(_tokenize(query))
-        query_norm = math.sqrt(sum(v * v for v in query_terms.values())) or 1.0
+        query_embedding = self._embedder(query)
         filtered = self._filter_documents(scope=scope, school_key=school_key)
         scored: list[DSOCitation] = []
         for document in filtered:
             lexical = _lexical_score(query_terms, document.term_freqs)
-            vector = _cosine_score(query_terms, query_norm, document.term_freqs, document.norm)
-            score = (0.5 * lexical) + (0.5 * vector)
+            dense = _cosine_similarity(query_embedding, document.embedding)
+            score = (0.5 * lexical) + (0.5 * dense)
             if score <= 0:
                 continue
             scored.append(DSOCitation(
@@ -119,8 +116,10 @@ def _lexical_score(query_terms: dict[str, int], document_terms: dict[str, int]) 
     return overlap / total
 
 
-def _cosine_score(query_terms: dict[str, int], query_norm: float, document_terms: dict[str, int], document_norm: float) -> float:
-    dot = sum(query_terms[token] * document_terms.get(token, 0) for token in query_terms)
+def _cosine_similarity(query_embedding: list[float], document_embedding: list[float]) -> float:
+    dot = sum(q * d for q, d in zip(query_embedding, document_embedding))
     if dot <= 0:
         return 0.0
+    query_norm = math.sqrt(sum(q * q for q in query_embedding)) or 1.0
+    document_norm = math.sqrt(sum(d * d for d in document_embedding)) or 1.0
     return dot / (query_norm * document_norm)
