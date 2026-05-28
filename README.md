@@ -1,8 +1,10 @@
 # VisaGuard
 
-VisaGuard is an AI system for F-1 student compliance. It turns student documents and employment data into a reviewable compliance state, then exposes that state through a dashboard and a grounded DSO copilot.
+**An AI compliance copilot for F-1 international students — built so the LLM is never trusted with the parts it gets wrong.**
 
-Under the hood, the system combines document extraction, deterministic timeline evaluation, policy RAG, LangGraph orchestration, and schema-enforced LLM reasoning. The goal is not to make legal decisions with a single model call; it is to separate extraction, rules, retrieval, and synthesis into components that can be inspected, tested, and improved independently.
+F-1 status is unforgiving. Miscount the 90-day OPT unemployment clock, misjudge whether a job is "directly related" to your major, or miss a reporting window, and a student can fall out of status. These are exactly the tasks general-purpose LLMs are worst at: date arithmetic, counting, and confidently inventing policy.
+
+VisaGuard turns a student's documents (I-20, EAD, offer letter) into a reviewable compliance state and a grounded DSO copilot — but it deliberately keeps the model out of the dangerous work. Dates and clocks are computed deterministically. Policy answers must be backed by retrieved federal and university sources. Every LLM output is schema-validated before it can touch application state. The model synthesizes and explains; it never decides the math.
 
 ## Product
 
@@ -10,9 +12,11 @@ Under the hood, the system combines document extraction, deterministic timeline 
 
 ![Document Intake](docs/images/intake.png)
 
-## Evaluation Engine
+## How it works
 
-The evaluation engine converts uploaded documents and manual EAD data into a frontend-ready compliance record.
+VisaGuard runs two LangGraph workflows over a shared compliance state.
+
+**1. Evaluation workflow** — converts uploaded documents into a frontend-ready compliance record:
 
 ```mermaid
 flowchart LR
@@ -20,63 +24,74 @@ flowchart LR
     B --> C[Docling + Ollama extraction]
     C --> D[Normalized student snapshot]
     D --> E[Timeline Manager<br/>deterministic]
-    D --> F[Policy Agent<br/>Gemini + local RAG]
+    D --> F[Policy Agent<br/>Gemini + hybrid RAG]
     E --> G[Compliance Agent<br/>deterministic]
     F --> G
     G --> H[Final compliance record]
     H --> I[Student dashboard]
 ```
 
-## DSO Copilot
-
-The DSO copilot is a separate LangGraph workflow that answers student questions using current compliance state plus retrieved federal and university guidance.
+**2. DSO copilot** — a separate conversational workflow that answers student questions using current compliance state plus retrieved guidance:
 
 ```mermaid
 flowchart LR
     A[Message + chat history] --> B[State loader]
     B --> C[Intent router]
-    C --> D[Hybrid retriever<br/>Chroma + lexical search]
+    C --> D[Hybrid retriever<br/>dense embeddings + lexical]
     B --> D
     D --> E[Gemini synthesizer]
     E --> F[Guardrails<br/>citations, no date math, escalation]
     F --> G[Structured response]
 ```
 
-## Engineering Highlights
+## Engineering decisions
 
-- Hybrid compliance architecture: deterministic timeline and compliance agents paired with Gemini-based policy and conversational reasoning.
-- Schema-enforced LLM boundaries: model outputs are validated before entering workflow state.
-- Grounded retrieval: policy and DSO responses cite curated federal and university sources instead of relying on raw model recall.
-- Explicit workflow orchestration: LangGraph coordinates both evaluation and conversational flows with persisted latest-state records and checkpointed execution history.
-- Safety-first response design: the DSO copilot is not allowed to invent compliance math and escalates high-risk situations to a human DSO or immigration attorney.
+The interesting parts of this project are the boundaries drawn around the LLM.
 
-## Stack
+**The model is forbidden from doing date math.** Unemployment-day counts and timeline windows are computed by a deterministic Timeline Manager. When a student asks "how many unemployment days do I have left?", the copilot quotes the precomputed clock value or declines — it never lets the LLM calculate it. The single most error-prone, highest-stakes task is kept entirely out of the model.
 
-- FastAPI, SQLAlchemy, Pydantic
-- LangGraph for workflow orchestration
-- Ollama for document-ingestion extraction
-- Gemini for non-ingestion reasoning
-- ChromaDB + lexical reranking for retrieval
-- React, Vite, Tailwind, TanStack Query
-- Pytest and Vitest
+**Policy verdicts require grounded evidence.** The Policy Agent won't return a "directly related" verdict unless retrieval surfaces *both* a matching CIP-code source and a federal policy source. No evidence, no verdict — it returns `insufficient_policy_evidence` instead of guessing.
 
-## Local Run
+**Hybrid retrieval, locally.** Both retrievers blend dense semantic similarity (local `nomic-embed-text` embeddings via Ollama, stored in ChromaDB) with lexical token overlap. Semantic recall catches paraphrased questions; lexical scoring keeps exact policy terminology (CIP codes, regulation numbers) from getting washed out.
+
+**Every LLM output is schema-validated.** Model responses are parsed into Pydantic schemas before they enter workflow state. A malformed or out-of-contract response fails closed rather than propagating a bad value into a compliance decision.
+
+**PII never leaves the machine during ingestion.** Document parsing (Docling) and extraction run on a local Ollama model, and direct identifiers — name, SEVIS ID, A-number, DOB, address — are redacted before text moves further down the pipeline.
+
+**Deterministic core, LLM at the edges.** Timeline and compliance logic are plain, testable Python. Gemini is used only where judgment and explanation genuinely help: policy interpretation and conversational synthesis. This keeps behavior auditable and the failure modes understandable.
+
+## Tech stack
+
+- **Backend:** FastAPI, SQLAlchemy, Pydantic
+- **Orchestration:** LangGraph (two workflows, SQLite-checkpointed)
+- **LLMs:** Gemini for reasoning/synthesis; local Ollama (`qwen3:4b-instruct`) for ingestion; `nomic-embed-text` for embeddings
+- **Retrieval:** ChromaDB vector store, hybrid dense + lexical scoring
+- **Frontend:** React, Vite, Tailwind, TanStack Query
+- **Testing:** Pytest, Vitest
+
+## Testing
+
+A suite of 150+ unit and integration tests covers the timeline engine, compliance decision matrix, hybrid retrieval, the no-math and escalation guardrails, schema validation, and both LangGraph workflows. Tests run fully offline — the Ollama embedder is injected, so retrieval logic is exercised without a live model.
+
+```bash
+uv run pytest
+```
+
+## Local run
 
 ```bash
 uv sync --dev
 cd frontend && npm install
 ```
 
-Create `.env` from `.env.example`, then set at least:
-- `GEMINI_API_KEY`
-- `OLLAMA_HOST`
-- `OLLAMA_MODEL`
+Create `.env` from `.env.example` and set at least `GEMINI_API_KEY`, `OLLAMA_HOST`, `OLLAMA_MODEL`, and `OLLAMA_EMBEDDING_MODEL`.
 
-Start Ollama and pull the ingestion model:
+Start Ollama and pull the ingestion and embedding models:
 
 ```bash
 ollama serve
 ollama pull qwen3:4b-instruct
+ollama pull nomic-embed-text
 ```
 
 Build the local indexes:
@@ -86,6 +101,7 @@ uv run python -m app.services.dso_agent.indexer
 uv run python - <<'PY'
 from pathlib import Path
 from app.core.config import Settings
+from app.services.embeddings import build_embedder
 from app.services.policy_agent.indexer import build_policy_index
 
 settings = Settings()
@@ -94,6 +110,7 @@ build_policy_index(
     cip_dataset_path=policy_root / 'cip_codes.json',
     policy_sources_dir=policy_root / 'sources',
     output_path=Path(settings.policy_index_path),
+    embedder=build_embedder(settings),
 )
 PY
 ```
@@ -105,18 +122,16 @@ uv run --with uvicorn uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 cd frontend && npm run dev
 ```
 
-## Output Contract
+## Output contract
 
-The evaluation workflow produces a latest-state record with:
-- `overall_state`
-- `severity`
-- `action_plan`
-- `audit_summary`
+The evaluation workflow produces a latest-state record with `overall_state`, `severity`, `action_plan`, and `audit_summary`. That record drives the dashboard directly and serves as immutable context for personalized DSO responses.
 
-That record drives the dashboard directly and serves as immutable context for personalized DSO responses.
+## Scope & limitations
 
-## Notes
+VisaGuard is a portfolio project, not legal advice, and is intentionally scoped:
 
-- The current app is dev-mode and still uses direct `user_id` selection instead of auth.
-- Raw downloaded sources are curated into local markdown before they are indexed for retrieval.
-- The DSO copilot currently supports one university corpus (NYU) plus federal guidance.
+- Dev-mode auth: users are selected by `user_id` rather than a real auth flow.
+- The DSO copilot currently ships one university corpus (NYU) plus federal guidance.
+- Retrieval sources are curated into local markdown before indexing, not crawled live.
+
+The copilot escalates high-risk situations to a human DSO or immigration attorney by design — it is built to assist, not to replace, professional advising.
